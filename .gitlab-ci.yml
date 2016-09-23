@@ -106,7 +106,7 @@ asan-ubsan:
     - export CXX=g++
     - $CXX --version
     - export ASAN_OPTIONS=check_initialization_order=true
-    - ./configure.py --module-policy=bsi --enable-modules=$EXTRA_MODULES --cc-abi-flags="-D_GLIBCXX_DEBUG -fsanitize=address,undefined -fno-sanitize-recover=undefined" --with-debug-info --cc="$CC" --cc-bin="$CXX" --prefix=/tmp/botan-installation
+    - ./configure.py --module-policy=bsi --enable-modules=$EXTRA_MODULES --disable-modules=locking_allocator --cc-abi-flags="-D_GLIBCXX_DEBUG -fsanitize=address,undefined -fno-sanitize-recover=undefined" --with-debug-info --cc="$CC" --cc-bin="$CXX" --prefix=/tmp/botan-installation
     - make -j 4
     - ./botan-test
     - ./botan-test --pkcs11-lib="$SOFTHSM2_LIB_LINUX" pkcs11
