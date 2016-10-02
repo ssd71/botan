@@ -12,6 +12,7 @@
 #include <botan/rng.h>
 #include <botan/hex.h>
 #include <botan/symkey.h>
+#include <botan/cpuid.h>
 
 #if defined(BOTAN_HAS_BIGINT)
   #include <botan/bigint.h>
@@ -170,6 +171,8 @@ class Test
 
             bool test_eq(const std::string& what, const char* produced, const char* expected);
 
+            bool test_is_nonempty(const std::string& what_is_it, const std::string& to_examine);
+
             bool test_eq(const std::string& what,
                          const std::string& produced,
                          const std::string& expected);
@@ -288,6 +291,9 @@ class Test
                }
 
             bool test_throws(const std::string& what, std::function<void ()> fn);
+            
+            bool test_throws(const std::string& what, const std::string& expected,
+                              std::function<void ()> fn);
 
             void set_ns_consumed(uint64_t ns) { m_ns_taken = ns; }
 
@@ -442,7 +448,9 @@ class Text_Based_Test : public Test
 
       bool m_first = true;
       std::unique_ptr<std::ifstream> m_cur;
+      std::string m_cur_src_name;
       std::deque<std::string> m_srcs;
+      std::vector<Botan::CPUID::CPUID_bits> m_cpu_flags;
    };
 
 }
