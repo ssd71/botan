@@ -67,6 +67,11 @@ class BOTAN_DLL Policy
       bool allowed_ecc_curve(const std::string& curve) const;
 
       /**
+      * Request that ECC curve points are sent compressed
+      */
+      virtual bool use_ecc_point_compression() const;
+
+      /**
       * Returns a list of compression algorithms we are willing to use,
       * in order of preference. Allowed values any value of
       * Compression_Method.
@@ -243,19 +248,32 @@ class BOTAN_DLL Policy
       virtual std::vector<u16bit> ciphersuite_list(Protocol_Version version,
                                                    bool have_srp) const;
 
+      /**
+      * @return the default MTU for DTLS
+      */
       virtual size_t dtls_default_mtu() const;
 
+      /**
+      * @return the initial timeout for DTLS
+      */
       virtual size_t dtls_initial_timeout() const;
 
+      /**
+      * @return the maximum timeout for DTLS
+      */
       virtual size_t dtls_maximum_timeout() const;
 
+      /**
+      * Convert this policy to a printable format.
+      * @param o stream to be printed to
+      */
       virtual void print(std::ostream& o) const;
 
       virtual ~Policy() {}
    };
 
 /**
-* NSA Suite B 128-bit security level (see @rfc 6460)
+* NSA Suite B 128-bit security level (RFC 6460)
 */
 class BOTAN_DLL NSA_Suite_B_128 : public Policy
    {
@@ -286,7 +304,7 @@ class BOTAN_DLL NSA_Suite_B_128 : public Policy
    };
 
 /**
-* Policy for DTLS. We require DTLS v1.2 and an AEAD mode
+* Policy for DTLS. We require DTLS v1.2 and an AEAD mode.
 */
 class BOTAN_DLL Datagram_Policy : public Policy
    {
@@ -348,6 +366,9 @@ class BOTAN_DLL Text_Policy : public Policy
       std::vector<std::string> allowed_ecc_curves() const override
          { return get_list("ecc_curves", Policy::allowed_ecc_curves()); }
       
+      bool use_ecc_point_compression() const override
+         { return get_bool("use_ecc_point_compression", Policy::use_ecc_point_compression()); }
+
       bool allow_tls10() const override
          { return get_bool("allow_tls10", Policy::allow_tls10()); }
       

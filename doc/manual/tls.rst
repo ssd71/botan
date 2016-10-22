@@ -103,7 +103,7 @@ information about the connection.
      This callback is for exerimental purposes and currently unused. It may be
      removed or modified in a future release.
 
-Versions from 1.11.0 to 1.11.30 did not have ``TLS::Callbacks` and instead
+Versions from 1.11.0 to 1.11.30 did not have ``TLS::Callbacks`` and instead
 used independent std::functions to pass the various callback functions.
 This interface is currently still included but is deprecated and will be removed
 in a future release. For the documentation for this interface, please check
@@ -223,7 +223,7 @@ TLS Clients
 .. cpp:class:: TLS::Client
 
    .. cpp:function:: Client( \
-         Callbacks& callbacks,
+         Callbacks& callbacks, \
          Session_Manager& session_manager, \
          Credentials_Manager& creds, \
          const Policy& policy, \
@@ -290,7 +290,7 @@ TLS Servers
 .. cpp:class:: TLS::Server
 
    .. cpp:function:: Server( \
-         Callbacks& callbacks,
+         Callbacks& callbacks, \
          Session_Manager& session_manager, \
          Credentials_Manager& creds, \
          const Policy& policy, \
@@ -593,6 +593,19 @@ policy settings from a file.
      "secp384r1", "brainpool256r1", "secp256r1"
 
      No other values are currently defined.
+
+ .. cpp:function:: bool use_ecc_point_compression() const
+
+     Prefer ECC point compression.
+
+     Signals that we prefer ECC points to be compressed when transmitted to us.
+     The other party may not support ECC point compression and therefore may still
+     send points uncompressed.
+    
+     Note that the certificate used during authentication must also follow the other
+     party's preference.
+
+     Default: false
 
  .. cpp:function:: std::vector<byte> compression() const
 

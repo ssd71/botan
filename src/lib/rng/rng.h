@@ -11,9 +11,9 @@
 #include <botan/entropy_src.h>
 #include <botan/secmem.h>
 #include <botan/exceptn.h>
+#include <botan/mutex.h>
 #include <chrono>
 #include <string>
-#include <mutex>
 
 namespace Botan {
 
@@ -38,7 +38,7 @@ class BOTAN_DLL RandomNumberGenerator
       /**
       * Randomize a byte array.
       * @param output the byte array to hold the random output.
-      * @param length the length of the byte array output.
+      * @param length the length of the byte array output in bytes.
       */
       virtual void randomize(byte output[], size_t length) = 0;
 
@@ -49,7 +49,7 @@ class BOTAN_DLL RandomNumberGenerator
       * A few RNG types do not accept any externally provided input,
       * in which case this function is a no-op.
       *
-      * @param inputs a byte array containg the entropy to be added
+      * @param input a byte array containg the entropy to be added
       * @param length the length of the byte array in
       */
       virtual void add_entropy(const byte input[], size_t length) = 0;
@@ -70,7 +70,12 @@ class BOTAN_DLL RandomNumberGenerator
       * Use this to further bind the outputs to your current
       * process/protocol state. For instance if generating a new key
       * for use in a session, include a session ID or other such
-      * value.  See NIST SP 800-90 A, B, C series for more ideas.
+      * value. See NIST SP 800-90 A, B, C series for more ideas.
+      *
+      * @param output buffer to hold the random output
+      * @param output_len size of the output buffer in bytes
+      * @param input entropy buffer to incorporate
+      * @param input_len size of the input buffer in bytes
       */
       virtual void randomize_with_input(byte output[], size_t output_len,
                                         const byte input[], size_t input_len);
@@ -78,8 +83,8 @@ class BOTAN_DLL RandomNumberGenerator
       /**
       * This calls `randomize_with_input` using some timestamps as extra input.
       *
-      * For a stateful RNG using non-random but potentially unique data as the
-      * additional_input can help protect against problems with fork, VM state
+      * For a stateful RNG using non-random but potentially unique data the
+      * extra input can help protect against problems with fork, VM state
       * rollback, or other cases where somehow an RNG state is duplicated. If
       * both of the duplicated RNG states later incorporate a timestamp (and the
       * timestamps don't themselves repeat), their outputs will diverge.
@@ -87,7 +92,7 @@ class BOTAN_DLL RandomNumberGenerator
       virtual void randomize_with_ts_input(byte output[], size_t output_len);
 
       /**
-      * Return the name of this RNG type
+      * @return the name of this RNG type
       */
       virtual std::string name() const = 0;
 
@@ -143,6 +148,9 @@ class BOTAN_DLL RandomNumberGenerator
          return b;
          }
 
+      /**
+      * @return a random byte that is not the zero byte
+      */
       byte next_nonzero_byte()
          {
          byte b = this->next_byte();
@@ -193,6 +201,7 @@ class BOTAN_DLL Null_RNG final : public RandomNumberGenerator
       std::string name() const override { return "Null_RNG"; }
    };
 
+#if defined(BOTAN_TARGET_OS_HAS_THREADS)
 /**
 * Wraps access to a RNG in a mutex
 */
@@ -201,25 +210,25 @@ class BOTAN_DLL Serialized_RNG final : public RandomNumberGenerator
    public:
       void randomize(byte out[], size_t len) override
          {
-         std::lock_guard<std::mutex> lock(m_mutex);
+         lock_guard_type<mutex_type> lock(m_mutex);
          m_rng->randomize(out, len);
          }
 
       bool is_seeded() const override
          {
-         std::lock_guard<std::mutex> lock(m_mutex);
+         lock_guard_type<mutex_type> lock(m_mutex);
          return m_rng->is_seeded();
          }
 
       void clear() override
          {
-         std::lock_guard<std::mutex> lock(m_mutex);
+         lock_guard_type<mutex_type> lock(m_mutex);
          m_rng->clear();
          }
 
       std::string name() const override
          {
-         std::lock_guard<std::mutex> lock(m_mutex);
+         lock_guard_type<mutex_type> lock(m_mutex);
          return m_rng->name();
          }
 
@@ -227,23 +236,24 @@ class BOTAN_DLL Serialized_RNG final : public RandomNumberGenerator
                     size_t poll_bits = BOTAN_RNG_RESEED_POLL_BITS,
                     std::chrono::milliseconds poll_timeout = BOTAN_RNG_RESEED_DEFAULT_TIMEOUT) override
          {
-         std::lock_guard<std::mutex> lock(m_mutex);
+         lock_guard_type<mutex_type> lock(m_mutex);
          return m_rng->reseed(src, poll_bits, poll_timeout);
          }
 
       void add_entropy(const byte in[], size_t len) override
          {
-         std::lock_guard<std::mutex> lock(m_mutex);
+         lock_guard_type<mutex_type> lock(m_mutex);
          m_rng->add_entropy(in, len);
          }
 
-      BOTAN_DEPRECATED("Create an AutoSeeded_RNG for other constructor") Serialized_RNG();
+      BOTAN_DEPRECATED("Use Serialized_RNG(new AutoSeeded_RNG)") Serialized_RNG();
 
       explicit Serialized_RNG(RandomNumberGenerator* rng) : m_rng(rng) {}
    private:
-      mutable std::mutex m_mutex;
+      mutable mutex_type m_mutex;
       std::unique_ptr<RandomNumberGenerator> m_rng;
    };
+#endif
 
 }
 

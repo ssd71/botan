@@ -85,7 +85,10 @@ Server_Key_Exchange::Server_Key_Exchange(Handshake_IO& io,
       m_params.push_back(get_byte(0, named_curve_id));
       m_params.push_back(get_byte(1, named_curve_id));
 
-      append_tls_length_value(m_params, ecdh->public_value(), 1);
+      // follow client's preference for point compression
+      append_tls_length_value(m_params,
+            ecdh->public_value(state.client_hello()->prefers_compressed_ec_points() ?
+            PointGFp::COMPRESSED : PointGFp::UNCOMPRESSED), 1);
 
       m_kex_key.reset(ecdh.release());
       }
@@ -130,7 +133,7 @@ Server_Key_Exchange::Server_Key_Exchange(Handshake_IO& io,
       std::pair<std::string, Signature_Format> format =
          state.choose_sig_format(*signing_key, m_hash_algo, m_sig_algo, false, policy);
 
-      PK_Signer signer(*signing_key, format.first, format.second);
+      PK_Signer signer(*signing_key, rng, format.first, format.second);
 
       signer.update(state.client_hello()->random());
       signer.update(state.server_hello()->random());

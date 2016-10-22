@@ -88,6 +88,10 @@
   #include <botan/chacha.h>
 #endif
 
+#if defined(BOTAN_HAS_ECC_GROUP)
+  #include <botan/ec_group.h>
+#endif
+
 namespace Botan_CLI {
 
 namespace {
@@ -426,6 +430,12 @@ class Speed final : public Command
                bench_fpe_fe1(msec);
                }
 #endif
+#if defined(BOTAN_HAS_ECC_GROUP)
+            else if(algo == "os2ecp")
+               {
+               bench_os2ecp(msec);
+               }
+#endif
             else if(algo == "RNG")
                {
 #if defined(BOTAN_HAS_AUTO_SEEDING_RNG)
@@ -586,16 +596,18 @@ class Speed final : public Command
          ks_timer.run([&] { enc.set_key(key); });
          ks_timer.run([&] { dec.set_key(key); });
 
+         Botan::secure_vector<uint8_t> iv = rng().random_vec(enc.default_nonce_length());
+
          while(encrypt_timer.under(runtime) && decrypt_timer.under(runtime))
             {
-            const Botan::secure_vector<uint8_t> iv = rng().random_vec(enc.default_nonce_length());
-
             // Must run in this order, or AEADs will reject the ciphertext
             iv_timer.run([&] { enc.start(iv); });
             encrypt_timer.run([&] { enc.finish(buffer); });
 
             iv_timer.run([&] { dec.start(iv); });
             decrypt_timer.run([&] { dec.finish(buffer); });
+
+            iv[0] += 1;
             }
 
          output() << Timer::result_string_ops(ks_timer);
@@ -658,6 +670,32 @@ class Speed final : public Command
             output() << " total samples " << rng.samples() << "\n";
             }
          }
+
+#if defined(BOTAN_HAS_ECC_GROUP)
+      void bench_os2ecp(const std::chrono::milliseconds runtime)
+         {
+         Timer uncmp_timer("OS2ECP uncompressed");
+         Timer cmp_timer("OS2ECP compressed");
+
+         const Botan::EC_Group group("secp256r1");
+         const Botan::CurveGFp& curve = group.get_curve();
+
+         while(uncmp_timer.under(runtime) && cmp_timer.under(runtime))
+            {
+            const Botan::BigInt k(rng(), 256);
+            const Botan::PointGFp p = group.get_base_point() * k;
+            const Botan::secure_vector<uint8_t> os_cmp = Botan::EC2OSP(p, Botan::PointGFp::COMPRESSED);
+            const Botan::secure_vector<uint8_t> os_uncmp = Botan::EC2OSP(p, Botan::PointGFp::UNCOMPRESSED);
+
+            uncmp_timer.run([&] { OS2ECP(os_uncmp, curve); });
+            cmp_timer.run([&] { OS2ECP(os_cmp, curve); });
+            }
+
+         output() << Timer::result_string_ops(uncmp_timer);
+         output() << Timer::result_string_ops(cmp_timer);
+         }
+
+#endif
 
 #if defined(BOTAN_HAS_FPE_FE1)
 
@@ -786,8 +824,8 @@ class Speed final : public Command
          {
          std::vector<uint8_t> plaintext, ciphertext;
 
-         Botan::PK_Encryptor_EME enc(key, padding, provider);
-         Botan::PK_Decryptor_EME dec(key, padding, provider);
+         Botan::PK_Encryptor_EME enc(key, rng(), padding, provider);
+         Botan::PK_Decryptor_EME dec(key, rng(), padding, provider);
 
          Timer enc_timer(nm, provider, padding + " encrypt");
          Timer dec_timer(nm, provider, padding + " decrypt");
@@ -823,8 +861,8 @@ class Speed final : public Command
                        const std::string& kdf,
                        std::chrono::milliseconds msec)
          {
-         Botan::PK_Key_Agreement ka1(key1, kdf, provider);
-         Botan::PK_Key_Agreement ka2(key2, kdf, provider);
+         Botan::PK_Key_Agreement ka1(key1, rng(), kdf, provider);
+         Botan::PK_Key_Agreement ka2(key2, rng(), kdf, provider);
 
          const std::vector<uint8_t> ka1_pub = key1.public_value();
          const std::vector<uint8_t> ka2_pub = key2.public_value();
@@ -851,8 +889,8 @@ class Speed final : public Command
                         const std::string& kdf,
                         std::chrono::milliseconds msec)
          {
-         Botan::PK_KEM_Decryptor dec(key, kdf, provider);
-         Botan::PK_KEM_Encryptor enc(key, kdf, provider);
+         Botan::PK_KEM_Decryptor dec(key, rng(), kdf, provider);
+         Botan::PK_KEM_Encryptor enc(key, rng(), kdf, provider);
 
          Timer kem_enc_timer(nm, provider, "KEM encrypt");
          Timer kem_dec_timer(nm, provider, "KEM decrypt");
@@ -888,7 +926,7 @@ class Speed final : public Command
          {
          std::vector<uint8_t> message, signature, bad_signature;
 
-         Botan::PK_Signer   sig(key, padding, Botan::IEEE_1363, provider);
+         Botan::PK_Signer   sig(key, rng(), padding, Botan::IEEE_1363, provider);
          Botan::PK_Verifier ver(key, padding, Botan::IEEE_1363, provider);
 
          Timer sig_timer(nm, provider, padding + " sign");

@@ -4,6 +4,73 @@ Release Notes
 Version 1.11.33, Not Yet Released
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+* Add Certificate_Store_In_SQL which supports storing certs, keys, and
+  revocation information in a SQL database. Subclass Certificate_Store_In_SQLite
+  specializes with support for SQLite3 databases. (GH #631)
+
+* The Certificate_Store interface has been changed to deal with std::shared_ptrs
+  instead of raw pointers (GH #471 #631)
+
+* Add support for official SHA-3. Keccak-1600 was already supported
+  but used different padding from FIPS 202.
+
+* Add SHAKE-128 based stream cipher.
+
+* NewHope now supports the AES-128/CTR + SHA-256 parameters used by
+  BoringSSL in addition to the SHA-3/SHAKE-128 parameters used by the
+  reference implementation.
+
+* Add support for the TLS Supported Point Formats Extension from RFC 4492. Adds
+  TLS::Policy::use_ecc_point_compression policy option. If supported on both
+  sides, ECC points can be sent in compressed format which saves a few bytes
+  during the handshake. (GH #645)
+
+* Fix entropy source selection bug on Windows, which caused the CryptoAPI
+  entropy source to be not available under its normal name "win32_cryptoapi" but
+  instead "dev_random". GH #644
+
+* Accept read-only access to /dev/urandom. System_RNG previously required
+  read-write access, to allow applications to provide inputs to the system
+  PRNG. But local security policies might only allow read-only access, as is the
+  case with Ubuntu's AppArmor profile for applications in the Snappy binary
+  format. If opening read/write fails, System_RNG silently backs down to
+  read-only, in which case calls to `add_entropy` on that object will fail.
+  (GH #647 #648)
+
+* Fix use of Win32 CryptoAPI RNG as an entropy source, which was accidentally
+  disabled due to empty list of acceptable providers being specified. Typically
+  the library would fall back to gathering entropy from OS functions returning
+  statistical information, but if this functionality was disabled in the build a
+  PRNG_Unseeded exception would result. (GH #655)
+
+* Add support for building the library as part of the IncludeOS unikernel.
+  This included making filesystem and threading support optional. (GH #665)
+
+* Added ISA annotations so that with GCC (all supported versions) and
+  Clang (since 3.7) it is no longer required to compile amalgamation
+  files with ABI specific flags such as ``-maes``. (GH #665)
+
+* Internal cleanups to TLS CBC record handling. TLS CBC ciphersuites
+  can now be disabled by disabling `tls_cbc` module.
+
+* Avoid static_assert triggering under MSVC debug builds (GH #646)
+
+* The antique PBKDF1 password hashing scheme is deprecated and will be
+  removed in a future release. It was only used to support the equally
+  ancient PBES1 private key encryption scheme, which was removed in 1.11.8.
+
+* Added MSVC debug/checked iterator builds (GH #666 #667)
+
+* Added Linux ppc64le cross compile target to Travis CI (GH #654)
+
+* If RC4 is disabled, also disable it coming from the OpenSSL provider (GH #641)
+
+* Add TLS message parsing tests (GH #640)
+
+* Updated BSI policy to prohibit DES, HKDF, HMAC_RNG (GH #649)
+
+* Documentation improvements (GH #660 #662 #663 #670)
+
 Version 1.11.32, 2016-09-28
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -61,6 +128,9 @@ Version 1.11.32, 2016-09-28
   The configure option ``--gen-amalgamation`` was removed. It did generate
   amalgamations but build Botan without amalgamation. Users should migrate to
   ``--amalgamation``. (GH #621)
+
+* DH keys did not automatically self-test after being generated, contrary to
+  the current behavior for other key types.
 
 * Add tests for TLS 1.2 PRF (GH #628)
 
