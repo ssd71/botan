@@ -156,7 +156,7 @@ class BuildConfigurationInformation(object):
         self.test_sources = list(find_sources_in(self.src_dir, 'tests'))
 
         if options.with_bakefile:
-            gen_bakefile( self.sources, self.cli_sources, self.cli_headers, self.test_sources, options )
+            gen_bakefile( self.sources, self.cli_sources, self.cli_headers, self.test_sources, self.external_headers, options )
 
         if options.write_sources_to_file:
             all_sources = self.sources + self.cli_sources + self.test_sources
@@ -1163,7 +1163,7 @@ def makefile_list(items):
     items = list(items) # force evaluation so we can slice it
     return (' '*16).join([item + ' \\\n' for item in items[:-1]] + [items[-1]])
 
-def gen_bakefile(lib_sources, cli_sources, cli_headers, test_sources, options):
+def gen_bakefile(lib_sources, cli_sources, cli_headers, test_sources, external_headers, options):
     def bakefile_sources(file, sources):
         for src in sources:
                 (dir,filename) = os.path.split(os.path.normpath(src))
@@ -1219,6 +1219,9 @@ def gen_bakefile(lib_sources, cli_sources, cli_headers, test_sources, options):
     if options.with_external_includedir:
         external_inc_dir = options.with_external_includedir.replace('\\','/')
         f.write('includedirs += "%s";\n' %external_inc_dir )
+
+    if external_headers:
+        f.write('includedirs += build/include/external;\n')
 
     if options.cpu in "x86_64":
         f.write('archs = x86_64;\n')
