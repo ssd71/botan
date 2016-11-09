@@ -5,17 +5,21 @@ Botan (Japanese for peony) is a cryptography library written in C++11
 and released under the permissive `Simplified BSD
 <http://botan.randombit.net/license.txt>`_ license.
 
-It contains TLS client and server implementation, X.509 certificates,
-ECDSA, AES, GCM, ChaCha20Poly1305, McEliece, bcrypt and other useful
-tools.
-
-As part of the build there is also a `botan` program built for command
-line usage (similar to `openssl`). The sources for these are intended to
-act as good examples of library usage.
+Botan's goal is to be the best option for cryptography in new C++ code by
+offering the tools necessary to implement a range of practical systems, such as
+TLS/DTLS, PKIX certificate handling, PKCS#11 and TPM hardware support, password
+hashing, and post quantum crypto schemes. Find the full feature list below.
 
 Development is coordinated on `GitHub <https://github.com/randombit/botan>`_
-and contributions are welcome. Read `doc/contributing.rst` for more
-about how to contribute.
+and contributions are welcome (read `doc/contributing.rst` for more info).
+
+If you need help, open a GitHub issue, email the `mailing list
+<http://lists.randombit.net/mailman/listinfo/botan-devel/>`_, or try
+the botan `gitter.im <https://gitter.im/libbotan/Chat>`_ channel.
+
+If you think you've found a security bug, read the `security page
+<http://botan.randombit.net/security.html>`_ for contact information
+and procedures.
 
 .. highlight:: none
 
@@ -35,45 +39,41 @@ For all the details on building the library, read the
 The library can also be built into a single-file amalgamation for easy
 inclusion into external build systems.
 
-If you need help or have questions, send a mail to the
-`mailing list <http://lists.randombit.net/mailman/listinfo/botan-devel/>`_
-or open a ticket on
-`GitHub Issues <https://github.com/randombit/botan/issues>`_. If you
-think you've found a security bug, read the
-`security page <http://botan.randombit.net/security.html>`_
-for contact information and procedures.
-
 In addition to C++, botan has a C89 API specifically designed to be easy
-to call from other languages. A Python binding using ctypes is included,
-there are also partial bindings for
-`Node.js <https://github.com/justinfreitag/node-botan>`_ and
-`OCaml <https://github.com/randombit/botan-ocaml>`_ among others.
+to call from other languages. A Python binding using ctypes is included.
 
-There is no support for the SSH protocol in Botan but there is a
-seperately developed C++11 SSH library by `cdesjardins
-<https://github.com/cdesjardins/cppssh>`_ which uses Botan for crypto
-operations.
+Continuous integration status
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. image:: https://travis-ci.org/randombit/botan.svg?branch=master
     :target: https://travis-ci.org/randombit/botan
+    :alt: Travis CI status
 
 .. image:: https://ci.appveyor.com/api/projects/status/n9f94dljd03j2lce/branch/master?svg=true
     :target: https://ci.appveyor.com/project/randombit/botan/branch/master
+    :alt: AppVeyor CI status
 
 .. image:: https://circleci.com/gh/randombit/botan.svg?style=shield
     :target: https://circleci.com/gh/randombit/botan
+    :alt: CircleCI status
 
 .. image:: https://botan-ci.kullo.net/badge
     :target: https://botan-ci.kullo.net/
+    :alt: Kullo CI status
+
+Static analyzer status
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. image:: https://codecov.io/github/randombit/botan/coverage.svg?branch=master
+    :target: https://codecov.io/github/randombit/botan
+    :alt: Code coverage report
 
 .. image:: https://scan.coverity.com/projects/624/badge.svg
     :target: https://scan.coverity.com/projects/624
-
-.. image:: https://codecov.io/github/randombit/botan/coverage.svg?branch=master
-    :target: https://codecov.io/github/randombit/botan
+    :alt: Coverity results
 
 .. image:: https://sonarqube.com/api/badges/gate?key=botan
     :target: https://sonarqube.com/dashboard/index/botan
+    :alt: Sonarqube analysis
 
 Download
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -95,21 +95,25 @@ source release is recommended.
 Current Development Work (1.11)
 ----------------------------------------
 
-The 1.11 branch is highly recommended, especially for new projects.
-Versions 1.11 and later require a working C++11 compiler; GCC 4.8 and
-later, Clang 3.5 and later, and MSVC 2013/2015 are regularly tested.
+The 1.11 branch is highly recommended, especially for new projects. While still
+technically API unstable, the 1.11 branch is very close to an API freeze for
+a new stable release branch.
 
-The latest development release is
-`1.11.32 <http://botan.randombit.net/releases/Botan-1.11.32.tgz>`_
-`(sig) <http://botan.randombit.net/releases/Botan-1.11.32.tgz.asc>`_
-released on 2016-09-28
+Versions 1.11 and later require a working C++11 compiler; GCC 4.8 and later,
+Clang 3.5 and later, and MSVC 2015 are regularly tested.
+
+The latest 1.11 release is
+`1.11.33 <http://botan.randombit.net/releases/Botan-1.11.33.tgz>`_
+`(sig) <http://botan.randombit.net/releases/Botan-1.11.33.tgz.asc>`_
+released on 2016-10-26
 
 Old Stable Series (1.10)
 ----------------------------------------
 
-The 1.10 branch is the last version of the library written in C++98
-and is the most commonly packaged version. It is still supported for
-security patches, but all development efforts are focused on 1.11.
+The 1.10 branch is the last version of the library written in C++98 and is still
+the most commonly packaged version. It is no longer supported except for
+critical security updates (with all support ending on 2018-1-1), and the
+developers do not recommend its use anymore.
 
 The latest 1.10 release is
 `1.10.13 <http://botan.randombit.net/releases/Botan-1.10.13.tgz>`_
@@ -177,7 +181,7 @@ Ciphers and cipher modes
 * Unauthenticated cipher modes CTR, CBC, XTS, CFB, OFB, and ECB
 * AES (including constant time SSSE3 and AES-NI versions)
 * AES candidates Serpent, Twofish, CAST-256
-* Stream ciphers Salsa20/XSalsa20, ChaCha20, and RC4
+* Stream ciphers Salsa20/XSalsa20, ChaCha20, SHAKE-128, and RC4
 * DES, 3DES and DESX
 * Threefish-512, Noekeon, Blowfish, CAST-128, IDEA, XTEA
 * National/telecom block ciphers SEED, KASUMI, MISTY1, GOST 28147
@@ -187,7 +191,7 @@ Hash functions and MACs
 ----------------------------------------
 
 * SHA-1, SHA-224, SHA-256, SHA-384, and SHA-512
-* SHA-3 winner Keccak-1600
+* SHA-3 (and Keccak-1600)
 * Skein-512, BLAKE2b
 * RIPEMD-160, Tiger, Whirlpool, GOST 34.11
 * Authentication codes HMAC, CMAC, Poly1305, SipHash
@@ -225,3 +229,8 @@ Recommended Algorithms
 
 * Key Agreement: ECDH P-256 or Curve25519, with KDF2(SHA-256)
   If you are concerned about quantum computers, combine ECC with NewHope
+
+Code coverage map
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. image:: https://codecov.io/gh/randombit/botan/graphs/tree.svg

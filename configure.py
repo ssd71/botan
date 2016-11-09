@@ -3,7 +3,7 @@
 """
 Configuration program for botan
 
-(C) 2009,2010,2011,2012,2013,2014,2015 Jack Lloyd
+(C) 2009,2010,2011,2012,2013,2014,2015,2016 Jack Lloyd
 (C) 2015,2016 Simon Warta (Kullo GmbH)
 
 Botan is released under the Simplified BSD License (see license.txt)
@@ -300,6 +300,10 @@ def process_command_line(args):
                            action='store_false',
                            help='disable building shared library')
 
+    build_group.add_option('--optimize-for-size', dest='optimize_for_size',
+                           action='store_true', default=False,
+                           help='optimize for code size')
+
     build_group.add_option('--no-optimizations', dest='no_optimizations',
                            action='store_true', default=False,
                            help='disable all optimizations (for debugging)')
@@ -407,6 +411,9 @@ def process_command_line(args):
     mods_group.add_option('--minimized-build', action='store_true', dest='no_autoload',
                           help='minimize build')
 
+    mods_group.add_option('--unsafe-fuzzer-mode', action='store_true',
+                          help='disable checks for fuzz testing')
+
     # Should be derived from info.txt but this runs too early
     third_party  = ['boost', 'bzip2', 'lzma', 'openssl', 'sqlite3', 'zlib', 'tpm', 'pkcs11']
 
@@ -444,10 +451,16 @@ def process_command_line(args):
     install_group.add_option('--includedir', metavar='DIR',
                              help='set the include file install dir')
 
+    misc_group = optparse.OptionGroup(parser, 'Miscellaneous options')
+
+    misc_group.add_option('--house-curve', metavar='STRING', dest='house_curve',
+                          help='a custom in-house curve of the format: curve.pem,NAME,OID,CURVEID')
+
     parser.add_option_group(target_group)
     parser.add_option_group(build_group)
     parser.add_option_group(mods_group)
     parser.add_option_group(install_group)
+    parser.add_option_group(misc_group)
 
     # These exist only for autoconf compatibility (requested by zw for mtn)
     compat_with_autoconf_options = [
@@ -866,6 +879,7 @@ class CompilerInfo(object):
                         'compile_flags': '',
                         'debug_info_flags': '',
                         'optimization_flags': '',
+                        'size_optimization_flags': '',
                         'coverage_flags': '',
                         'sanitizer_flags': '',
                         'static_analysis_flags': '',
@@ -977,7 +991,14 @@ class CompilerInfo(object):
                 yield self.debug_info_flags
 
             if not options.no_optimizations:
-                yield self.optimization_flags
+                if options.optimize_for_size:
+                    if self.size_optimization_flags != '':
+                        yield self.size_optimization_flags
+                    else:
+                        logging.warning("No size optimization flags set for current compiler")
+                        yield self.optimization_flags
+                else:
+                    yield self.optimization_flags
 
             if options.with_static_analysis:
                 if self.static_analysis_flags == '':
@@ -1140,6 +1161,7 @@ def guess_processor(archinfo):
 Read a whole file into memory as a string
 """
 def slurp_file(filename):
+    # type: (object) -> object
     if filename is None:
         return ''
     return ''.join(open(filename).readlines())
@@ -1218,6 +1240,7 @@ def gen_bakefile(lib_sources, cli_sources, cli_headers, test_sources, external_h
 
     if options.with_external_includedir:
         external_inc_dir = options.with_external_includedir.replace('\\','/')
+        # Attention: bakefile supports only relative paths
         f.write('includedirs += "%s";\n' %external_inc_dir )
 
     if external_headers:
@@ -1276,14 +1299,25 @@ def gen_makefile_lists(var, build_config, options, modules, cc, arch, osinfo):
         for src in sources:
             (dir,file) = os.path.split(os.path.normpath(src))
 
-            parts = dir.split(os.sep)[2:]
+            parts = dir.split(os.sep)
+            if 'src' in parts:
+                parts = parts[parts.index('src')+2:]
+            elif 'tests' in parts:
+                parts = parts[parts.index('tests')+2:]
+            elif 'cli' in parts:
+                parts = parts[parts.index('cli'):]
+            elif file.find('botan_all') != -1:
+                parts = []
+            else:
+                raise Exception("Unexpected file '%s/%s'" % (dir, file))
+
             if parts != []:
 
                 # Handle src/X/X.cpp -> X.o
                 if file == parts[-1] + '.cpp':
-                    name = '_'.join(dir.split(os.sep)[2:]) + '.cpp'
+                    name = '_'.join(parts) + '.cpp'
                 else:
-                    name = '_'.join(dir.split(os.sep)[2:]) + '_' + file
+                    name = '_'.join(parts) + '_' + file
 
                 def fixup_obj_name(name):
                     def remove_dups(parts):
@@ -1381,6 +1415,29 @@ def create_template_vars(build_config, options, modules, cc, arch, osinfo):
                 logging.warn('Unknown arch in innosetup_arch %s' % (arch))
         return None
 
+    def read_pem(filename):
+        lines = [line.rstrip() for line in open(filename)]
+        for ndx, line in enumerate(lines):
+            lines[ndx] = ''.join(('\"', lines[ndx], '\" \\', '\n'))
+        return ''.join(lines)
+
+    def misc_config():
+        opts = list()
+        if options.house_curve:
+            p = options.house_curve.split(",")
+            if len(p) < 4:
+                logging.error('Too few parameters to --in-house-curve')
+            # make sure TLS curve id is in reserved for private use range (0xFE00..0xFEFF)
+            curve_id = int(p[3], 16)
+            if curve_id < 0xfe00 or curve_id > 0xfeff:
+                logging.error('TLS curve ID not in reserved range (see RFC 4492)')
+            opts.append('HOUSE_ECC_CURVE_NAME \"' + p[1] + '\"')
+            opts.append('HOUSE_ECC_CURVE_OID \"' + p[2] + '\"')
+            opts.append('HOUSE_ECC_CURVE_PEM ' + read_pem(filename=p[0]))
+            opts.append('HOUSE_ECC_CURVE_TLS_ID ' + hex(curve_id))
+
+        return opts
+
     vars = {
         'version_major':  build_config.version_major,
         'version_minor':  build_config.version_minor,
@@ -1397,7 +1454,8 @@ def create_template_vars(build_config, options, modules, cc, arch, osinfo):
 
         'version_datestamp': build_config.version_datestamp,
 
-        'src_dir': build_config.src_dir,
+        'base_dir': options.base_dir,
+        'src_dir': options.src_dir,
         'doc_dir': build_config.doc_dir,
 
         'command_line': ' '.join(sys.argv),
@@ -1417,7 +1475,6 @@ def create_template_vars(build_config, options, modules, cc, arch, osinfo):
 
         'out_dir': options.with_build_dir or os.path.curdir,
         'build_dir': build_config.build_dir,
-        'src_dir': options.src_dir,
 
         'scripts_dir': os.path.join(build_config.src_dir, 'scripts'),
 
@@ -1470,6 +1527,8 @@ def create_template_vars(build_config, options, modules, cc, arch, osinfo):
 
         'include_files': makefile_list(build_config.public_headers),
 
+        'unsafe_fuzzer_mode_define': '' if not options.unsafe_fuzzer_mode else '#define BOTAN_UNSAFE_FUZZER_MODE',
+
         'ar_command': cc.ar_command or osinfo.ar_command,
         'ranlib_command': osinfo.ranlib_command(),
         'install_cmd_exec': osinfo.install_cmd_exec,
@@ -1498,7 +1557,9 @@ def create_template_vars(build_config, options, modules, cc, arch, osinfo):
         'mod_list': '\n'.join(sorted([m.basename for m in modules])),
 
         'python_version': options.python_version,
-        'with_sphinx': options.with_sphinx
+        'with_sphinx': options.with_sphinx,
+
+        'misc_config': make_cpp_macros(misc_config())
         }
 
     if options.os == 'darwin' and options.build_shared_lib:
@@ -1525,13 +1586,13 @@ def create_template_vars(build_config, options, modules, cc, arch, osinfo):
         else:
             vars['libname'] = 'botan'
 
-    vars["header_in"] = process_template('src/build-data/makefile/header.in', vars)
+    vars["header_in"] = process_template(os.path.join(options.makefile_dir, 'header.in'), vars)
 
     if vars["makefile_style"] == "gmake":
-        vars["gmake_commands_in"] = process_template('src/build-data/makefile/gmake_commands.in', vars)
-        vars["gmake_dso_in"]      = process_template('src/build-data/makefile/gmake_dso.in', vars) \
+        vars["gmake_commands_in"] = process_template(os.path.join(options.makefile_dir, 'gmake_commands.in'), vars)
+        vars["gmake_dso_in"]      = process_template(os.path.join(options.makefile_dir, 'gmake_dso.in'), vars) \
                                     if options.build_shared_lib else ''
-        vars["gmake_coverage_in"] = process_template('src/build-data/makefile/gmake_coverage.in', vars) \
+        vars["gmake_coverage_in"] = process_template(os.path.join(options.makefile_dir, 'gmake_coverage.in'), vars) \
                                     if options.with_coverage else ''
 
     return vars
@@ -1598,9 +1659,10 @@ def choose_modules_to_use(modules, module_policy, archinfo, ccinfo, options):
 
         if modname in options.disabled_modules:
             cannot_use_because(modname, 'disabled by user')
-        elif modname in options.enabled_modules:
-            to_load.append(modname) # trust the user
         elif usable:
+            if modname in options.enabled_modules:
+                to_load.append(modname) # trust the user
+
             if module.load_on == 'never':
                 cannot_use_because(modname, 'disabled as buggy')
             elif module.load_on == 'request':
@@ -1625,8 +1687,16 @@ def choose_modules_to_use(modules, module_policy, archinfo, ccinfo, options):
                 else:
                     to_load.append(modname)
             else:
-                logging.warning('Unknown load_on %s in %s' % (
+                logging.error('Unknown load_on %s in %s' % (
                     module.load_on, modname))
+
+    if 'compression' in to_load:
+        # Confirm that we have at least one compression library enabled
+        # Otherwise we leave a lot of useless support code compiled in, plus a
+        # make_compressor call that always fails
+        if 'zlib' not in to_load and 'bzip2' not in to_load and 'lzma' not in to_load:
+            to_load.remove('compression')
+            cannot_use_because('compression', 'no enabled compression schemes')
 
     dependency_failure = True
 

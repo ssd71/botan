@@ -16,6 +16,7 @@ Ciphers, Hashes, PBKDF
 * Camellia using AES-NI
 * Serpent using AVX2 or SSSE3/pshufb
 * ChaCha20 using AVX2, NEON
+* XSalsa20-Poly1305 AEAD compatible with NaCl
 * ARIA block cipher (RFCs 5794 and 6209)
 * ASCON 1.2 (CAESAR)
 * NORX-64 3.0 (CAESAR)
@@ -28,7 +29,6 @@ Ciphers, Hashes, PBKDF
 Public Key Crypto, Math
 ----------------------------------------
 
-* XMSS (draft-irtf-cfrg-xmss-hash-based-signatures)
 * SPHINCS-256
 * EdDSA (GH #283)
 * Ed448-Goldilocks
@@ -60,7 +60,6 @@ TLS
 * Make DTLS support optional at build time
 * Make TLS v1.0 and v1.1 optional at build time
 * Make finite field DH optional at build time
-* Curve25519 key exchange
 * NEWHOPE (CECPQ1) key exchange (GH #613)
 * TLS OCSP stapling (RFC 6066)
 * Authentication using TOFU (sqlite3 storage)
@@ -69,13 +68,12 @@ TLS
 * OpenPGP authentication (RFC 5081)
 * DTLS-SCTP (RFC 6083)
 * Perspectives (http://perspectives-project.org/)
-* Support for server key stored in TPM
+* Support for server key stored in TPM or PKCS #11
 
 PKIX
 ----------------------------------------
 
 * Test suite for validation of 'real world' cert chains (GH #611)
-* Support multiple DNS names in certificates
 * Improve output of X509_Certificate::to_string
   This is a free-form string for human consumption so the only constraints
   are being informative and concise. (GH #656)
@@ -107,7 +105,7 @@ Compat Headers
   since the OpenSSL API handles both crypto and IO. Use Asio, since it
   is expected to be the base of future C++ standard network library.
 
-FFI (Python, OCaml)
+FFI and Bindings
 ----------------------------------------
 
 * Expose certificates
@@ -117,6 +115,7 @@ FFI (Python, OCaml)
 Library Infrastructure
 ----------------------------------------
 
+* Guarded integer type to prevent overflow bugs
 * Add logging callbacks
 * Add latency tracing framework
 
@@ -126,6 +125,17 @@ Build/Test
 * Code signing for Windows installers
 * Test runner python script that captures backtraces and other
   debug info during CI
+
+FIPS 140 Build
+---------------------------------------
+
+* Special build policy that disables all builtin crypto impls, then provides new
+  FIPS 140 versions implemented using just calls to the OpenSSL FIPS module API
+  plus wrapping the appropriate functions for self-tests and so on. This creates a
+  library in FIPS 140 validated form (since there is no 'crypto' anymore from
+  Botan, just the ASN.1 parser, TLS library, PKI etc all of which FIPS 140 does
+  not care about) without the enourmous hassle and expense of actually having to
+  maintain a FIPS validation on Botan.
 
 CLI
 ----------------------------------------

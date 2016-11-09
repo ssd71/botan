@@ -29,10 +29,13 @@ secure_vector<byte> curve25519(const secure_vector<byte>& secret,
    return out;
    }
 
-secure_vector<byte> curve25519_basepoint(const secure_vector<byte>& secret)
+std::vector<byte> curve25519_basepoint(const secure_vector<byte>& secret)
    {
    const byte basepoint[32] = { 9 };
-   return curve25519(secret, basepoint);
+   std::vector<byte> out(32);
+   const int rc = curve25519_donna(out.data(), secret.data(), basepoint);
+   BOTAN_ASSERT_EQUAL(rc, 0, "Return value of curve25519_donna is ok");
+   return out;
    }
 
 }
@@ -75,8 +78,7 @@ Curve25519_PrivateKey::Curve25519_PrivateKey(RandomNumberGenerator& rng)
    }
 
 Curve25519_PrivateKey::Curve25519_PrivateKey(const AlgorithmIdentifier&,
-                                             const secure_vector<byte>& key_bits,
-                                             RandomNumberGenerator& rng)
+                                             const secure_vector<byte>& key_bits)
    {
    BER_Decoder(key_bits)
       .start_cons(SEQUENCE)
@@ -87,8 +89,6 @@ Curve25519_PrivateKey::Curve25519_PrivateKey(const AlgorithmIdentifier&,
 
    size_check(m_public.size(), "public key");
    size_check(m_private.size(), "private key");
-
-   load_check(rng);
    }
 
 secure_vector<byte> Curve25519_PrivateKey::pkcs8_private_key() const
@@ -120,7 +120,6 @@ namespace {
 class Curve25519_KA_Operation : public PK_Ops::Key_Agreement_with_KDF
    {
    public:
-      typedef Curve25519_PrivateKey Key_Type;
 
       Curve25519_KA_Operation(const Curve25519_PrivateKey& key, const std::string& kdf) :
          PK_Ops::Key_Agreement_with_KDF(kdf),

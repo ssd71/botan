@@ -85,8 +85,7 @@ secure_vector<byte> RSA_PrivateKey::pkcs8_private_key() const
    }
 
 RSA_PrivateKey::RSA_PrivateKey(const AlgorithmIdentifier&,
-                               const secure_vector<byte>& key_bits,
-                               RandomNumberGenerator& rng)
+                               const secure_vector<byte>& key_bits)
    {
    BER_Decoder(key_bits)
       .start_cons(SEQUENCE)
@@ -100,12 +99,9 @@ RSA_PrivateKey::RSA_PrivateKey(const AlgorithmIdentifier&,
          .decode(m_d2)
          .decode(m_c)
       .end_cons();
-
-   load_check(rng);
    }
 
-RSA_PrivateKey::RSA_PrivateKey(RandomNumberGenerator& rng,
-                               const BigInt& prime1,
+RSA_PrivateKey::RSA_PrivateKey(const BigInt& prime1,
                                const BigInt& prime2,
                                const BigInt& exp,
                                const BigInt& d_exp,
@@ -126,8 +122,6 @@ RSA_PrivateKey::RSA_PrivateKey(RandomNumberGenerator& rng,
 
    m_d1 = m_d % (m_p - 1);
    m_d2 = m_d % (m_q - 1);
-
-   load_check(rng);
    }
 
 /*
@@ -155,8 +149,6 @@ RSA_PrivateKey::RSA_PrivateKey(RandomNumberGenerator& rng,
    m_d1 = m_d % (m_p - 1);
    m_d2 = m_d % (m_q - 1);
    m_c = inverse_mod(m_q, m_p);
-
-   gen_check(rng);
    }
 
 /*
@@ -247,7 +239,6 @@ class RSA_Signature_Operation : public PK_Ops::Signature_with_EMSA,
                                 private RSA_Private_Operation
    {
    public:
-      typedef RSA_PrivateKey Key_Type;
 
       size_t max_input_bits() const override { return get_max_input_bits(); };
 
@@ -272,7 +263,6 @@ class RSA_Decryption_Operation : public PK_Ops::Decryption_with_EME,
                                  private RSA_Private_Operation
    {
    public:
-      typedef RSA_PrivateKey Key_Type;
 
       size_t max_raw_input_bits() const override { return get_max_input_bits(); };
 
@@ -296,7 +286,6 @@ class RSA_KEM_Decryption_Operation : public PK_Ops::KEM_Decryption_with_KDF,
                                      private RSA_Private_Operation
    {
    public:
-      typedef RSA_PrivateKey Key_Type;
 
       RSA_KEM_Decryption_Operation(const RSA_PrivateKey& key,
                                    const std::string& kdf,
@@ -346,7 +335,6 @@ class RSA_Encryption_Operation : public PK_Ops::Encryption_with_EME,
                                  private RSA_Public_Operation
    {
    public:
-      typedef RSA_PublicKey Key_Type;
 
       RSA_Encryption_Operation(const RSA_PublicKey& rsa, const std::string& eme) :
          PK_Ops::Encryption_with_EME(eme),
@@ -368,7 +356,6 @@ class RSA_Verify_Operation : public PK_Ops::Verification_with_EMSA,
                              private RSA_Public_Operation
    {
    public:
-      typedef RSA_PublicKey Key_Type;
 
       size_t max_input_bits() const override { return get_max_input_bits(); };
 
@@ -391,7 +378,6 @@ class RSA_KEM_Encryption_Operation : public PK_Ops::KEM_Encryption_with_KDF,
                                      private RSA_Public_Operation
    {
    public:
-      typedef RSA_PublicKey Key_Type;
 
       RSA_KEM_Encryption_Operation(const RSA_PublicKey& key,
                                    const std::string& kdf) :

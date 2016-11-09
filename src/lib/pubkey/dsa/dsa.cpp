@@ -40,27 +40,20 @@ DSA_PrivateKey::DSA_PrivateKey(RandomNumberGenerator& rng,
                                const BigInt& x_arg)
    {
    m_group = grp;
-   m_x = x_arg;
-
-   if(m_x == 0)
-      m_x = BigInt::random_integer(rng, 2, group_q() - 1);
-
-   m_y = power_mod(group_g(), m_x, group_p());
 
    if(x_arg == 0)
-      gen_check(rng);
+      m_x = BigInt::random_integer(rng, 2, group_q() - 1);
    else
-      load_check(rng);
+      m_x = x_arg;
+
+   m_y = power_mod(group_g(), m_x, group_p());
    }
 
 DSA_PrivateKey::DSA_PrivateKey(const AlgorithmIdentifier& alg_id,
-                               const secure_vector<byte>& key_bits,
-                               RandomNumberGenerator& rng) :
+                               const secure_vector<byte>& key_bits) :
    DL_Scheme_PrivateKey(alg_id, key_bits, DL_Group::ANSI_X9_57)
    {
    m_y = power_mod(group_g(), m_x, group_p());
-
-   load_check(rng);
    }
 
 /*
@@ -85,7 +78,6 @@ namespace {
 class DSA_Signature_Operation : public PK_Ops::Signature_with_EMSA
    {
    public:
-      typedef DSA_PrivateKey Key_Type;
       DSA_Signature_Operation(const DSA_PrivateKey& dsa, const std::string& emsa) :
          PK_Ops::Signature_with_EMSA(emsa),
          m_q(dsa.group_q()),
@@ -152,7 +144,6 @@ DSA_Signature_Operation::raw_sign(const byte msg[], size_t msg_len,
 class DSA_Verification_Operation : public PK_Ops::Verification_with_EMSA
    {
    public:
-      typedef DSA_PublicKey Key_Type;
       DSA_Verification_Operation(const DSA_PublicKey& dsa,
                                  const std::string& emsa) :
          PK_Ops::Verification_with_EMSA(emsa),

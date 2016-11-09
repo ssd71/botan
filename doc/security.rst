@@ -1,16 +1,18 @@
 
+.. highlight:: none
+
 Security
 ========================================
 
 If you think you have found a security bug in Botan please contact
-Jack Lloyd (lloyd@randombit.net). If you would like to encrypt your
+Jack Lloyd (jack@randombit.net). If you would like to encrypt your
 mail please use::
 
   pub   rsa3072/57123B60 2015-03-23
         Key fingerprint = 4E60 C735 51AF 2188 DF0A  5A62 78E9 8043 5712 3B60
-        uid         Jack Lloyd <lloyd@randombit.net>
+        uid         Jack Lloyd <jack@randombit.net>
 
-This key can be found in the file `pgpkey.txt` or online at
+This key can be found in the file ``pgpkey.txt`` or online at
 https://keybase.io/jacklloyd and on most PGP keyservers.
 
 Advisories
@@ -18,6 +20,20 @@ Advisories
 
 2016
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* 2016-10-8871 (CVE-2016-8871) OAEP side channel
+
+  A side channel in OAEP decoding could be used to distinguish RSA ciphertexts
+  that did or did not have a leading 0 byte. For an attacker capable of
+  precisely measuring the time taken for OAEP decoding, this could be used as an
+  oracle allowing decryption of arbitrary RSA ciphertexts. Remote exploitation
+  seems difficult as OAEP decoding is always paired with RSA decryption, which
+  takes substantially more (and variable) time, and so will tend to mask the
+  timing channel. This attack does seems well within reach of a local attacker
+  capable of a cache or branch predictor based side channel attack. Finding,
+  analysis, and patch by Juraj Somorovsky.
+
+  Introduced in 1.11.29, fixed in 1.11.33
 
 * 2016-08-30 (CVE-2016-6878) Undefined behavior in Curve25519
 
@@ -153,9 +169,9 @@ Advisories
 
   Otherwise valid certificates using wildcards would be accepted as matching
   certain hostnames that should they should not according to RFC 6125. For
-  example a certificate issued for '*.example.com' should match
-  'foo.example.com' but not 'example.com' or 'bar.foo.example.com'. Previously
-  Botan would accept such a certificate as valid for 'bar.foo.example.com'.
+  example a certificate issued for ``*.example.com`` should match
+  ``foo.example.com`` but not ``example.com`` or ``bar.foo.example.com``. Previously
+  Botan would accept such a certificate as also valid for ``bar.foo.example.com``.
 
   RFC 6125 also requires that when matching a X.509 certificate against a DNS
   name, the CN entry is only compared if no subjectAlternativeName entry is

@@ -39,9 +39,9 @@
 
 namespace Botan {
 
-namespace {
-
 #if defined(BOTAN_HAS_ECC_PUBLIC_KEY_CRYPTO)
+
+namespace {
 
 secure_vector<byte> PKCS8_for_openssl(const EC_PrivateKey& ec)
    {
@@ -67,26 +67,31 @@ int OpenSSL_EC_nid_for(const OID& oid)
    if(oid.empty())
       return -1;
 
-   static const std::map<std::string, int> nid_map = {
-      { "secp192r1", NID_X9_62_prime192v1  },
-      { "secp224r1", NID_secp224r1 },
-      { "secp256r1", NID_X9_62_prime256v1 },
-      { "secp384r1", NID_secp384r1 },
-      { "secp521r1", NID_secp521r1 },
-      // TODO: OpenSSL 1.0.2 added brainpool curves
-   };
-
    const std::string name = OIDS::lookup(oid);
-   auto i = nid_map.find(name);
-   if(i != nid_map.end())
-      return i->second;
+
+   if(name == "secp192r1")
+      return NID_X9_62_prime192v1;
+   if(name == "secp224r1")
+      return NID_secp224r1;
+   if(name == "secp256r1")
+      return NID_X9_62_prime256v1;
+   if(name == "secp384r1")
+      return NID_secp384r1;
+   if(name == "secp521r1")
+      return NID_secp521r1;
+
+   // TODO: OpenSSL 1.0.2 added brainpool curves
 
    return -1;
    }
 
+}
+
 #endif
 
 #if defined(BOTAN_HAS_ECDSA) && !defined(OPENSSL_NO_ECDSA)
+
+namespace {
 
 class OpenSSL_ECDSA_Verification_Operation : public PK_Ops::Verification_with_EMSA
    {
@@ -218,7 +223,6 @@ namespace {
 class OpenSSL_ECDH_KA_Operation : public PK_Ops::Key_Agreement_with_KDF
    {
    public:
-      typedef ECDH_PrivateKey Key_Type;
 
       OpenSSL_ECDH_KA_Operation(const ECDH_PrivateKey& ecdh, const std::string& kdf) :
          PK_Ops::Key_Agreement_with_KDF(kdf), m_ossl_ec(::EC_KEY_new(), ::EC_KEY_free)
@@ -266,7 +270,6 @@ class OpenSSL_ECDH_KA_Operation : public PK_Ops::Key_Agreement_with_KDF
 
    private:
       std::unique_ptr<EC_KEY, std::function<void (EC_KEY*)>> m_ossl_ec;
-      size_t m_order_bits = 0;
    };
 
 }

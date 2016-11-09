@@ -27,7 +27,7 @@ snail-mail address (S), and Bitcoin address (B).
   D: GF(p) arithmetic
 
   N: Olivier de Gaalon
-  D: SQLite encryption codec (src/wrap/sqlite)
+  D: SQLite encryption codec (src/contrib/sqlite)
 
   N: Matthew Gregan
   D: Binary file I/O support, allocator fixes
@@ -79,8 +79,8 @@ snail-mail address (S), and Bitcoin address (B).
   D: Curve25519
 
   N: Jack Lloyd
-  E: lloyd@randombit.net
-  W: http://www.randombit.net/
+  E: jack@randombit.net
+  W: https://www.randombit.net/
   P: 3F69 2E64 6D92 3BBE E7AE  9258 5C0F 96E8 4EC1 6D6B
   B: 1DwxWb2J4vuX4vjsbzaCXW696rZfeamahz
   D: Original designer/author, maintainer 2001-current
@@ -96,7 +96,7 @@ snail-mail address (S), and Bitcoin address (B).
 
   N: Vaclav Ovsik
   E: vaclav.ovsik@i.cz
-  D: Perl XS module (src/wrap/perl-xs)
+  D: Perl XS module (src/contrib/perl-xs)
 
   N: Luca Piccarreta
   E: luca.piccarreta@gmail.com

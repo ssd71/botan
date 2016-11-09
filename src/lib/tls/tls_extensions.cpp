@@ -293,6 +293,17 @@ std::string Supported_Elliptic_Curves::curve_id_to_name(u16bit id)
          return "brainpool384r1";
       case 28:
          return "brainpool512r1";
+
+#if defined(BOTAN_HAS_CURVE_25519)
+      case 29:
+         return "x25519";
+#endif
+
+#if defined(BOTAN_HOUSE_ECC_CURVE_NAME)
+      case BOTAN_HOUSE_ECC_CURVE_TLS_ID:
+         return BOTAN_HOUSE_ECC_CURVE_NAME;
+#endif
+
       default:
          return ""; // something we don't know or support
       }
@@ -313,7 +324,18 @@ u16bit Supported_Elliptic_Curves::name_to_curve_id(const std::string& name)
    if(name == "brainpool512r1")
       return 28;
 
-   throw Invalid_Argument("name_to_curve_id unknown name " + name);
+#if defined(BOTAN_HAS_CURVE_25519)
+   if(name == "x25519")
+      return 29;
+#endif
+
+#if defined(BOTAN_HOUSE_ECC_CURVE_NAME)
+   if(name == BOTAN_HOUSE_ECC_CURVE_NAME)
+      return BOTAN_HOUSE_ECC_CURVE_TLS_ID;
+#endif
+
+   // Unknown/unavailable EC curves are ignored
+   return 0;
    }
 
 std::vector<byte> Supported_Elliptic_Curves::serialize() const
@@ -323,8 +345,12 @@ std::vector<byte> Supported_Elliptic_Curves::serialize() const
    for(size_t i = 0; i != m_curves.size(); ++i)
       {
       const u16bit id = name_to_curve_id(m_curves[i]);
-      buf.push_back(get_byte(0, id));
-      buf.push_back(get_byte(1, id));
+
+      if(id > 0)
+         {
+         buf.push_back(get_byte(0, id));
+         buf.push_back(get_byte(1, id));
+         }
       }
 
    buf[0] = get_byte(0, static_cast<u16bit>(buf.size()-2));

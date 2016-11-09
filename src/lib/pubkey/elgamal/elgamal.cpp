@@ -37,20 +37,13 @@ ElGamal_PrivateKey::ElGamal_PrivateKey(RandomNumberGenerator& rng,
       m_x.randomize(rng, dl_exponent_size(group_p().bits()));
 
    m_y = power_mod(group_g(), m_x, group_p());
-
-   if(x_arg == 0)
-      gen_check(rng);
-   else
-      load_check(rng);
    }
 
 ElGamal_PrivateKey::ElGamal_PrivateKey(const AlgorithmIdentifier& alg_id,
-                                       const secure_vector<byte>& key_bits,
-                                       RandomNumberGenerator& rng) :
+                                       const secure_vector<byte>& key_bits) :
    DL_Scheme_PrivateKey(alg_id, key_bits, DL_Group::ANSI_X9_42)
    {
    m_y = power_mod(group_g(), m_x, group_p());
-   load_check(rng);
    }
 
 /*
@@ -65,7 +58,7 @@ bool ElGamal_PrivateKey::check_key(RandomNumberGenerator& rng,
    if(!strong)
       return true;
 
-   return KeyPair::encryption_consistency_check(rng, *this, "EME1(SHA-1)");
+   return KeyPair::encryption_consistency_check(rng, *this, "EME1(SHA-256)");
    }
 
 namespace {
@@ -76,7 +69,6 @@ namespace {
 class ElGamal_Encryption_Operation : public PK_Ops::Encryption_with_EME
    {
    public:
-      typedef ElGamal_PublicKey Key_Type;
 
       size_t max_raw_input_bits() const override { return m_mod_p.get_modulus().bits() - 1; }
 
@@ -129,7 +121,6 @@ ElGamal_Encryption_Operation::raw_encrypt(const byte msg[], size_t msg_len,
 class ElGamal_Decryption_Operation : public PK_Ops::Decryption_with_EME
    {
    public:
-      typedef ElGamal_PrivateKey Key_Type;
 
       size_t max_raw_input_bits() const override
          { return m_mod_p.get_modulus().bits() - 1; }

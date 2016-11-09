@@ -100,6 +100,11 @@ after_success:
 notifications:
   email: botan-commits@lists.randombit.net
 
+  webhooks:
+    urls:
+      - https://webhooks.gitter.im/e/9caf8eaa06913b69443f
+    on_start: never
+
 git:
   depth: 5
 
@@ -114,7 +119,7 @@ addons:
   coverity_scan:
     project:
       name: "randombit/botan"
-    notification_email: lloyd@randombit.net
+    notification_email: jack@randombit.net
     build_command_prepend: "./configure.py --no-optimizations --with-zlib --with-pkcs11"
     build_command: "make -j2"
     branch_pattern: coverity_scan

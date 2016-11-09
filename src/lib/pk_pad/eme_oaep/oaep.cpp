@@ -11,21 +11,6 @@
 
 namespace Botan {
 
-OAEP* OAEP::make(const Spec& request)
-   {
-   if(request.algo_name() == "OAEP" && request.arg_count_between(1, 2))
-      {
-      if(request.arg_count() == 1 ||
-         (request.arg_count() == 2 && request.arg(1) == "MGF1"))
-         {
-         if(auto hash = HashFunction::create(request.arg(0)))
-            return new OAEP(hash.release());
-         }
-      }
-
-   return nullptr;
-   }
-
 /*
 * OAEP Pad Operation
 */
@@ -74,15 +59,20 @@ secure_vector<byte> OAEP::unpad(byte& valid_mask,
 
    Also have to be careful about timing attacks! Pointed out by Falko
    Strenzke.
+    
+   According to the standard (Section 7.1.1), the encryptor always 
+   creates a message as follows:
+      i. Concatenate a single octet with hexadecimal value 0x00,
+         maskedSeed, and maskedDB to form an encoded message EM of
+         length k octets as
+            EM = 0x00 || maskedSeed || maskedDB.
+   where k is the length of the modulus N.
+   Therefore, the first byte can always be skipped safely.
    */
 
-   if(in[0] == 0)
-      {
-      in += 1;
-      in_length -= 1;
-      }
-
-   secure_vector<byte> input(in, in + in_length);
+   byte skip_first = CT::is_zero<byte>(in[0]) & 0x01;
+   
+   secure_vector<byte> input(in + skip_first, in + in_length);
 
    CT::poison(input.data(), input.size());
 

@@ -602,6 +602,7 @@ Test::Result test_rsa_privkey_import()
 
    // create private key
    RSA_PrivateKey priv_key(Test::rng(), 2048);
+   result.confirm("Key self test OK", priv_key.check_key(Test::rng(), true));
 
    // import to card
    RSA_PrivateKeyImportProperties props(priv_key.get_n(), priv_key.get_d());
@@ -619,6 +620,7 @@ Test::Result test_rsa_privkey_import()
 
    PKCS11_RSA_PrivateKey pk(test_session.session(), props);
    result.test_success("RSA private key import was successful");
+   result.confirm("PK self test OK", pk.check_key(Test::rng(), true));
 
    pk.destroy();
    return result;
@@ -650,10 +652,11 @@ Test::Result test_rsa_privkey_export()
    props.set_sensitive(false);
 
    PKCS11_RSA_PrivateKey pk(test_session.session(), props);
+   result.confirm("Check PK11 key", pk.check_key(Test::rng(), true));
 
    RSA_PrivateKey exported = pk.export_key();
    result.test_success("RSA private key export was successful");
-   result.test_eq("pkcs8 private key", pk.pkcs8_private_key(), priv_key.pkcs8_private_key());
+   result.confirm("Check exported key", exported.check_key(Test::rng(), true));
 
    pk.destroy();
    return result;
@@ -676,6 +679,7 @@ Test::Result test_rsa_pubkey_import()
 
    PKCS11_RSA_PublicKey pk(test_session.session(), props);
    result.test_success("RSA public key import was successful");
+   result.confirm("Check PK11 key", pk.check_key(Test::rng(), true));
 
    pk.destroy();
 
@@ -745,10 +749,10 @@ Test::Result test_rsa_encrypt_decrypt()
 
    auto encrypt_and_decrypt = [&keypair, &result](const std::vector<byte>& plaintext, const std::string& padding) -> void
       {
-      Botan::PK_Encryptor_EME encryptor(keypair.first, padding, "pkcs11");
+      Botan::PK_Encryptor_EME encryptor(keypair.first, Test::rng(), padding, "pkcs11");
       auto encrypted = encryptor.encrypt(plaintext, Test::rng());
 
-      Botan::PK_Decryptor_EME decryptor(keypair.second, padding, "pkcs11");
+      Botan::PK_Decryptor_EME decryptor(keypair.second, Test::rng(), padding, "pkcs11");
       auto decrypted = decryptor.decrypt(encrypted);
 
       // some token / middlewares do not remove the padding bytes
@@ -785,7 +789,7 @@ Test::Result test_rsa_sign_verify()
 
    auto sign_and_verify = [&keypair, &plaintext, &result](const std::string& emsa, bool multipart) -> void
       {
-      Botan::PK_Signer signer(keypair.second, emsa, Botan::IEEE_1363, "pkcs11");
+      Botan::PK_Signer signer(keypair.second, Test::rng(), emsa, Botan::IEEE_1363, "pkcs11");
       std::vector<byte> signature;
       if ( multipart )
          {
@@ -863,6 +867,7 @@ Test::Result test_ecdsa_privkey_import()
 
    // create ecdsa private key
    ECDSA_PrivateKey priv_key(Test::rng(), EC_Group("secp256r1"));
+   result.confirm("Key self test OK", priv_key.check_key(Test::rng(), true));
    priv_key.set_parameter_encoding(EC_Group_Encoding::EC_DOMPAR_ENC_OID);
 
    // import to card
@@ -877,6 +882,8 @@ Test::Result test_ecdsa_privkey_import()
 
    PKCS11_ECDSA_PrivateKey pk(test_session.session(), props);
    result.test_success("ECDSA private key import was successful");
+   pk.set_public_point(priv_key.public_point());
+   result.confirm("P11 key self test OK", pk.check_key(Test::rng(), false));
 
    pk.destroy();
    return result;
@@ -892,6 +899,7 @@ Test::Result test_ecdsa_privkey_export()
    ECDSA_PrivateKey priv_key(Test::rng(), EC_Group("secp256r1"));
    priv_key.set_parameter_encoding(EC_Group_Encoding::EC_DOMPAR_ENC_OID);
 
+   result.confirm("Check ECDSA key", priv_key.check_key(Test::rng(), true));
    // import to card
    EC_PrivateKeyImportProperties props(priv_key.DER_domain(), priv_key.private_value());
    props.set_token(true);
@@ -904,9 +912,13 @@ Test::Result test_ecdsa_privkey_export()
    props.set_label(label);
 
    PKCS11_ECDSA_PrivateKey pk(test_session.session(), props);
+   pk.set_public_point(priv_key.public_point());
+   result.confirm("Check PK11 key", pk.check_key(Test::rng(), false));
 
    ECDSA_PrivateKey exported = pk.export_key();
    result.test_success("ECDSA private key export was successful");
+   result.confirm("Check exported key valid", exported.check_key(Test::rng(), true));
+   result.test_eq("Check exported key contents", exported.pkcs8_private_key(), priv_key.pkcs8_private_key());
 
    pk.destroy();
    return result;
@@ -1038,7 +1050,7 @@ Test::Result test_ecdsa_sign_verify()
 
    auto sign_and_verify = [ &keypair, &plaintext, &result ](const std::string& emsa) -> void
       {
-      Botan::PK_Signer signer(keypair.second, emsa, Botan::IEEE_1363, "pkcs11");
+      Botan::PK_Signer signer(keypair.second, Test::rng(), emsa, Botan::IEEE_1363, "pkcs11");
       auto signature = signer.sign_message(plaintext, Test::rng());
 
       Botan::PK_Verifier token_verifier(keypair.first, emsa, Botan::IEEE_1363, "pkcs11");
@@ -1267,8 +1279,8 @@ Test::Result test_ecdh_derive()
    PKCS11_ECDH_KeyPair keypair2 = generate_ecdh_keypair(test_session, "Botan test ECDH key2");
 
    // SoftHSMv2 only supports CKD_NULL KDF at the moment
-   Botan::PK_Key_Agreement ka(keypair.second, "Raw", "pkcs11");
-   Botan::PK_Key_Agreement kb(keypair2.second, "Raw", "pkcs11");
+   Botan::PK_Key_Agreement ka(keypair.second, Test::rng(), "Raw", "pkcs11");
+   Botan::PK_Key_Agreement kb(keypair2.second, Test::rng(), "Raw", "pkcs11");
 
    Botan::SymmetricKey alice_key = ka.derive_key(32, unlock(EC2OSP(keypair2.first.public_point(),
                                    PointGFp::UNCOMPRESSED)));

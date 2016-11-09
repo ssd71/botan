@@ -12,22 +12,11 @@
 #include <botan/asn1_oid.h>
 #include <botan/alg_id.h>
 #include <botan/rng.h>
+#include <botan/pk_ops_fwd.h>
 
 namespace Botan {
 
 class RandomNumberGenerator;
-
-namespace PK_Ops {
-
-class Encryption;
-class Decryption;
-class Key_Agreement;
-class KEM_Encryption;
-class KEM_Decryption;
-class Verification;
-class Signature;
-
-}
 
 /**
 * Public Key Base Class.
@@ -145,13 +134,6 @@ class BOTAN_DLL Public_Key
       virtual std::unique_ptr<PK_Ops::Verification>
          create_verification_op(const std::string& params,
                                 const std::string& provider) const;
-
-   protected:
-      /**
-      * Self-test after loading a key
-      * @param rng a random number generator
-      */
-      virtual void load_check(RandomNumberGenerator& rng) const;
    };
 
 /**
@@ -247,19 +229,6 @@ class BOTAN_DLL Private_Key : public virtual Public_Key
          create_key_agreement_op(RandomNumberGenerator& rng,
                                  const std::string& params,
                                  const std::string& provider) const;
-
-   protected:
-      /**
-      * Self-test after loading a key
-      * @param rng a random number generator
-      */
-      void load_check(RandomNumberGenerator& rng) const override;
-
-      /**
-      * Self-test after generating a key
-      * @param rng a random number generator
-      */
-      void gen_check(RandomNumberGenerator& rng) const;
    };
 
 /**

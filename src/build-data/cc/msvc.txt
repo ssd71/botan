@@ -13,6 +13,7 @@ compile_flags "/nologo /c"
 static_analysis_flags "/analyze"
 
 optimization_flags "/O2"
+size_optimization_flags "/O1"
 
 # for debug info in the object file:
 #debug_info_flags "/Z7"
