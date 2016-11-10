@@ -31,7 +31,7 @@ build-linux-all-shared-gcc:
     - export CC=gcc
     - export CXX=g++
     - $CXX --version
-    - ./configure.py --module-policy=bsi --enable-modules=$EXTRA_MODULES --cc="$CC" --cc-bin="$CXX" --with-bzip2 --with-lzma --with-openssl --with-sqlite --with-zlib --prefix=/tmp/botan-installation
+    - ./configure.py --module-policy=bsi --enable-modules=$EXTRA_MODULES --cc="$CC" --cc-bin="$CXX" --with-bzip2 --with-lzma --with-sqlite --with-zlib --prefix=/tmp/botan-installation
     - make -j 4
     - ./botan-test
     - ./botan-test --pkcs11-lib="$SOFTHSM2_LIB_LINUX" pkcs11
@@ -46,7 +46,7 @@ build-linux-all-shared-clang:
     - export CC=clang
     - export CXX=clang++
     - $CXX --version
-    - ./configure.py --module-policy=bsi --enable-modules=$EXTRA_MODULES --cc="$CC" --cc-bin="$CXX" --with-bzip2 --with-lzma --with-openssl --with-sqlite --with-zlib --prefix=/tmp/botan-installation
+    - ./configure.py --module-policy=bsi --enable-modules=$EXTRA_MODULES --cc="$CC" --cc-bin="$CXX" --with-bzip2 --with-lzma --with-sqlite --with-zlib --prefix=/tmp/botan-installation
     - make -j 4
     - ./botan-test
     - ./botan-test --pkcs11-lib="$SOFTHSM2_LIB_LINUX" pkcs11
@@ -61,7 +61,7 @@ build-linux-all-static-gcc:
     - export CC=gcc
     - export CXX=g++
     - $CXX --version
-    - ./configure.py --module-policy=bsi --enable-modules=$EXTRA_MODULES --disable-shared --cc="$CC" --cc-bin="$CXX" --with-bzip2 --with-lzma --with-openssl --with-sqlite --with-zlib --prefix=/tmp/botan-installation
+    - ./configure.py --module-policy=bsi --enable-modules=$EXTRA_MODULES --disable-shared --cc="$CC" --cc-bin="$CXX" --with-bzip2 --with-lzma --with-sqlite --with-zlib --prefix=/tmp/botan-installation
     - make -j 4
     - ./botan-test
     - ./botan-test --pkcs11-lib="$SOFTHSM2_LIB_LINUX" pkcs11
@@ -76,7 +76,7 @@ build-linux-all-static-clang:
     - export CC=clang
     - export CXX=clang++
     - $CXX --version
-    - ./configure.py --module-policy=bsi --enable-modules=$EXTRA_MODULES --disable-shared --cc="$CC" --cc-bin="$CXX" --with-bzip2 --with-lzma --with-openssl --with-sqlite --with-zlib --prefix=/tmp/botan-installation
+    - ./configure.py --module-policy=bsi --enable-modules=$EXTRA_MODULES --disable-shared --cc="$CC" --cc-bin="$CXX" --with-bzip2 --with-lzma --with-sqlite --with-zlib --prefix=/tmp/botan-installation
     - make -j 4
     - ./botan-test
     - ./botan-test --pkcs11-lib="$SOFTHSM2_LIB_LINUX" pkcs11
@@ -91,7 +91,7 @@ build-linux-all-shared-gcc-32bit-cross:
     - export CC=gcc
     - export CXX=g++
     - $CXX --version
-    - ./configure.py --module-policy=bsi --enable-modules=$EXTRA_MODULES --cpu="x86" --cc-abi-flags="-m32" --cc="$CC" --cc-bin="$CXX" --with-bzip2 --with-lzma --with-openssl --with-sqlite --with-zlib --prefix=/tmp/botan-installation
+    - ./configure.py --module-policy=bsi --enable-modules=$EXTRA_MODULES --cpu="x86" --cc-abi-flags="-m32" --cc="$CC" --cc-bin="$CXX" --with-bzip2 --with-lzma --with-sqlite --with-zlib --prefix=/tmp/botan-installation
     - make -j 4
     - ./botan-test
   tags:
