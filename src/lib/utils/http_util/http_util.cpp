@@ -26,6 +26,9 @@
   #include <sys/socket.h>
   #include <netdb.h>
   #include <unistd.h>
+  #include <netinet/in.h>
+#else
+  //#warning "No network support enabled in http_util"
 #endif
 
 namespace Botan {
@@ -91,7 +94,7 @@ std::string http_transact(const std::string& hostname,
 
    socket_info.sin_addr = *reinterpret_cast<struct in_addr*>(host_addr->h_addr); // FIXME
 
-   if(::connect(fd, (sockaddr*)&socket_info, sizeof(struct sockaddr)) != 0)
+   if(::connect(fd, reinterpret_cast<sockaddr*>(&socket_info), sizeof(struct sockaddr)) != 0)
       throw HTTP_Error("HTTP connection to " + hostname + " failed");
 
    size_t sent_so_far = 0;
@@ -101,7 +104,7 @@ std::string http_transact(const std::string& hostname,
       ssize_t sent = ::write(fd, &message[sent_so_far], left);
 
       if(sent < 0)
-         throw HTTP_Error("HTTP server hung up on us");
+         throw HTTP_Error("write to HTTP server failed, error '" + std::string(::strerror(errno)) + "'");
       else
          sent_so_far += static_cast<size_t>(sent);
       }
@@ -113,7 +116,7 @@ std::string http_transact(const std::string& hostname,
       ssize_t got = ::read(fd, buf.data(), buf.size());
 
       if(got < 0)
-         throw HTTP_Error("HTTP server hung up on us");
+         throw HTTP_Error("read from HTTP server failed, error '" + std::string(::strerror(errno)) + "'");
       else if(got > 0)
          oss.write(buf.data(), static_cast<std::streamsize>(got));
       else
@@ -122,8 +125,7 @@ std::string http_transact(const std::string& hostname,
    return oss.str();
 
 #else
-   throw HTTP_Error("Cannot connect to " + hostname +
-                            ": network code disabled in build");
+   throw HTTP_Error("Cannot connect to " + hostname + ": network code disabled in build");
 #endif
    }
 
@@ -167,9 +169,12 @@ Response http_sync(http_exch_fn http_transact,
                    const std::vector<byte>& body,
                    size_t allowable_redirects)
    {
+   if(url.empty())
+      throw HTTP_Error("URL empty");
+
    const auto protocol_host_sep = url.find("://");
    if(protocol_host_sep == std::string::npos)
-      throw HTTP_Error("Invalid URL " + url);
+      throw HTTP_Error("Invalid URL '" + url + "'");
 
    const auto host_loc_sep = url.find('/', protocol_host_sep + 3);
 

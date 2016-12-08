@@ -1,5 +1,4 @@
 /*
-* PK Operation Types
 * (C) 2010,2015 Jack Lloyd
 *
 * Botan is released under the Simplified BSD License (see license.txt)
@@ -7,6 +6,17 @@
 
 #ifndef BOTAN_PK_OPERATIONS_H__
 #define BOTAN_PK_OPERATIONS_H__
+
+/**
+* Ordinary applications should never need to include or use this
+* header. It is exposed only for specialized applications which want
+* to implement new versions of public key crypto without merging them
+* as changes to the library. One actual example of such usage is an
+* application which creates RSA signatures using a custom TPM library.
+* Unless you're doing something like that, you don't need anything
+* here. Instead use pubkey.h which wraps these types safely and
+* provides a stable application-oriented API.
+*/
 
 #include <botan/pk_keys.h>
 #include <botan/secmem.h>
@@ -26,11 +36,11 @@ namespace PK_Ops {
 class BOTAN_DLL Encryption
    {
    public:
-      virtual size_t max_input_bits() const = 0;
-
       virtual secure_vector<byte> encrypt(const byte msg[],
                                           size_t msg_len,
                                           RandomNumberGenerator& rng) = 0;
+
+      virtual size_t max_input_bits() const = 0;
 
       virtual ~Encryption() {}
    };
@@ -41,8 +51,6 @@ class BOTAN_DLL Encryption
 class BOTAN_DLL Decryption
    {
    public:
-      virtual size_t max_input_bits() const = 0;
-
       virtual secure_vector<byte> decrypt(byte& valid_mask,
                                           const byte ciphertext[],
                                           size_t ciphertext_len) = 0;
@@ -69,24 +77,6 @@ class BOTAN_DLL Verification
       */
       virtual bool is_valid_signature(const byte sig[], size_t sig_len) = 0;
 
-      /**
-      * Get the maximum message size in bits supported by this public key.
-      * @return maximum message in bits
-      */
-      virtual size_t max_input_bits() const = 0;
-
-      /**
-      * Find out the number of message parts supported by this scheme.
-      * @return number of message parts
-      */
-      virtual size_t message_parts() const { return 1; }
-
-      /**
-      * Find out the message part size supported by this scheme/key.
-      * @return size of the message parts
-      */
-      virtual size_t message_part_size() const { return 0; }
-
       virtual ~Verification() {}
    };
 
@@ -96,18 +86,6 @@ class BOTAN_DLL Verification
 class BOTAN_DLL Signature
    {
    public:
-      /**
-      * Find out the number of message parts supported by this scheme.
-      * @return number of message parts
-      */
-      virtual size_t message_parts() const { return 1; }
-
-      /**
-      * Find out the message part size supported by this scheme/key.
-      * @return size of the message parts
-      */
-      virtual size_t message_part_size() const { return 0; }
-
       /*
       * Add more data to the message currently being signed
       * @param msg the message

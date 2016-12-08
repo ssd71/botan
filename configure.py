@@ -129,7 +129,7 @@ class BuildConfigurationInformation(object):
         self.internal_headers = sorted(flatten([m.internal_headers() for m in modules]))
         self.external_headers = sorted(flatten([m.external_headers() for m in modules]))
 
-        if options.via_amalgamation:
+        if options.amalgamation:
             self.build_sources = ['botan_all.cpp']
         else:
             self.build_sources = self.sources
@@ -154,9 +154,6 @@ class BuildConfigurationInformation(object):
         self.cli_sources = list(find_sources_in(self.src_dir, 'cli'))
         self.cli_headers = list(find_headers_in(self.src_dir, 'cli'))
         self.test_sources = list(find_sources_in(self.src_dir, 'tests'))
-
-        if options.with_bakefile:
-            gen_bakefile( self.sources, self.cli_sources, self.cli_headers, self.test_sources, self.external_headers, options )
 
         if options.write_sources_to_file:
             all_sources = self.sources + self.cli_sources + self.test_sources
@@ -282,15 +279,18 @@ def process_command_line(args):
     build_group = optparse.OptionGroup(parser, 'Build options')
 
     build_group.add_option('--with-debug-info', action='store_true', default=False, dest='with_debug_info',
-                           help='enable debug info')
+                           help='include debug symbols')
 
     build_group.add_option('--with-sanitizers', action='store_true', default=False, dest='with_sanitizers',
-                           help='enable runtime checks')
+                           help='enable ASan/UBSan checks')
 
     build_group.add_option('--with-static-analysis', action='store_true', default=False, 
                            help='enable static analysis checks')
 
     build_group.add_option('--with-coverage', action='store_true', default=False, dest='with_coverage',
+                           help='enable coverage checking and disable opts')
+
+    build_group.add_option('--with-coverage-info', action='store_true', default=False, dest='with_coverage_info',
                            help='enable coverage checking')
 
     build_group.add_option('--enable-shared-library', dest='build_shared_lib',
@@ -332,6 +332,11 @@ def process_command_line(args):
 
     build_group.add_option('--with-external-includedir', metavar='DIR', default='',
                            help='use DIR for external includes')
+
+    build_group.add_option('--with-openmp', default=False, action='store_true',
+                           help='enable use of OpenMP')
+    build_group.add_option('--with-cilkplus', default=False, action='store_true',
+                           help='enable use of Cilk Plus')
 
     link_methods = ['symlink', 'hardlink', 'copy']
     build_group.add_option('--link-method', default=None, metavar='METHOD',
@@ -499,6 +504,7 @@ def process_command_line(args):
         options.with_debug_info = True
 
     if options.with_coverage:
+        options.with_coverage_info = True
         options.no_optimizations = True
 
     def parse_multiple_enable(modules):
@@ -862,6 +868,11 @@ class ArchInfo(object):
         if options.with_valgrind:
             macros.append('HAS_VALGRIND')
 
+        if options.with_openmp:
+            macros.append('TARGET_HAS_OPENMP')
+        if options.with_cilkplus:
+            macros.append('TARGET_HAS_CILKPLUS')
+
         return macros
 
 class CompilerInfo(object):
@@ -956,7 +967,7 @@ class CompilerInfo(object):
             if flag != None and flag != '' and flag not in abi_link:
                 abi_link.append(flag)
 
-        if options.with_coverage:
+        if options.with_coverage_info:
             if self.coverage_flags == '':
                 raise Exception('No coverage handling for %s' % (self.basename))
             abi_link.append(self.coverage_flags)
@@ -965,6 +976,16 @@ class CompilerInfo(object):
             if self.sanitizer_flags == '':
                 raise Exception('No sanitizer handling for %s' % (self.basename))
             abi_link.append(self.sanitizer_flags)
+
+        if options.with_openmp:
+            if 'openmp' not in self.mach_abi_linking:
+                raise Exception('No support for OpenMP for %s' % (self.basename))
+            abi_link.append(self.mach_abi_linking['openmp'])
+
+        if options.with_cilkplus:
+            if 'cilkplus' not in self.mach_abi_linking:
+                raise Exception('No support for Cilk Plus for %s' % (self.basename))
+            abi_link.append(self.mach_abi_linking['cilkplus'])
 
         abi_flags = ' '.join(sorted(abi_link))
 
@@ -1185,7 +1206,8 @@ def makefile_list(items):
     items = list(items) # force evaluation so we can slice it
     return (' '*16).join([item + ' \\\n' for item in items[:-1]] + [items[-1]])
 
-def gen_bakefile(lib_sources, cli_sources, cli_headers, test_sources, external_headers, options):
+def gen_bakefile(build_config, options):
+
     def bakefile_sources(file, sources):
         for src in sources:
                 (dir,filename) = os.path.split(os.path.normpath(src))
@@ -1219,20 +1241,20 @@ def gen_bakefile(lib_sources, cli_sources, cli_headers, test_sources, external_h
     # shared library project
     f.write('shared-library botan {\n')
     f.write('\tdefines = "BOTAN_DLL=__declspec(dllexport)";\n')
-    bakefile_sources( f, lib_sources )
+    bakefile_sources( f, build_config.sources )
     f.write('}\n')
 
     # cli project
     f.write('program cli {\n')
     f.write('\tdeps = botan;\n')
-    bakefile_sources( f, cli_sources )
-    bakefile_cli_headers( f, cli_headers )
+    bakefile_sources( f, build_config.cli_sources )
+    bakefile_cli_headers( f, build_config.cli_headers )
     f.write('}\n')
 
     # tests project
     f.write('program tests {\n')
     f.write('\tdeps = botan;\n')
-    bakefile_test_sources( f, test_sources )
+    bakefile_test_sources( f, build_config.test_sources )
     f.write('}\n')
 
     # global options
@@ -1243,7 +1265,7 @@ def gen_bakefile(lib_sources, cli_sources, cli_headers, test_sources, external_h
         # Attention: bakefile supports only relative paths
         f.write('includedirs += "%s";\n' %external_inc_dir )
 
-    if external_headers:
+    if build_config.external_headers:
         f.write('includedirs += build/include/external;\n')
 
     if options.cpu in "x86_64":
@@ -1593,7 +1615,7 @@ def create_template_vars(build_config, options, modules, cc, arch, osinfo):
         vars["gmake_dso_in"]      = process_template(os.path.join(options.makefile_dir, 'gmake_dso.in'), vars) \
                                     if options.build_shared_lib else ''
         vars["gmake_coverage_in"] = process_template(os.path.join(options.makefile_dir, 'gmake_coverage.in'), vars) \
-                                    if options.with_coverage else ''
+                                    if options.with_coverage_info else ''
 
     return vars
 
@@ -1836,7 +1858,7 @@ def generate_amalgamation(build_config, options):
         return contents
 
     botan_include_matcher = re.compile('#include <botan/(.*)>$')
-    std_include_matcher = re.compile('#include <([^/\.]+|stddef.h)>$')
+    std_include_matcher = re.compile('^#include <([^/\.]+|stddef.h)>$')
     any_include_matcher = re.compile('#include <(.*)>$')
 
     class Amalgamation_Generator:
@@ -1900,7 +1922,7 @@ def generate_amalgamation(build_config, options):
 
     amalg_header = """/*
 * Botan %s Amalgamation
-* (C) 1999-2013,2014,2015 Jack Lloyd and others
+* (C) 1999-2013,2014,2015,2016 Jack Lloyd and others
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -2198,8 +2220,7 @@ def main(argv = None):
         raise Exception("--gen-amalgamation was removed. Migrate to --amalgamation.")
 
     if options.via_amalgamation:
-        logging.warn("--via-amalgamation is deprecated. Use --amalgamation.")
-        options.amalgamation = True
+        raise Exception("--via-amalgamation was removed. Use --amalgamation instead.")
 
     if options.build_shared_lib and not osinfo.building_shared_supported:
         raise Exception('Botan does not support building as shared library on the target os. '
@@ -2313,6 +2334,9 @@ def main(argv = None):
         amalgamation_cpp_files = generate_amalgamation(build_config, options)
         build_config.build_sources = amalgamation_cpp_files
         gen_makefile_lists(template_vars, build_config, options, using_mods, cc, arch, osinfo)
+
+    if options.with_bakefile:
+        gen_bakefile(build_config, options)
 
     write_template(template_vars['makefile_path'], makefile_template)
 

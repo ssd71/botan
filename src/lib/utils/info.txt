@@ -1,4 +1,4 @@
-define UTIL_FUNCTIONS 20150919
+define UTIL_FUNCTIONS 20161127
 
 load_on always
 
@@ -8,6 +8,7 @@ bswap.h
 calendar.h
 charset.h
 cpuid.h
+compiler.h
 data_src.h
 database.h
 exceptn.h
@@ -30,6 +31,7 @@ filesystem.h
 os_utils.h
 prefetch.h
 rounding.h
+safeint.h
 semaphore.h
 stl_util.h
 </header:internal>

@@ -37,9 +37,7 @@ bool Ciphersuite::ecc_ciphersuite() const
 
 bool Ciphersuite::cbc_ciphersuite() const
    {
-   return (cipher_algo() == "3DES" || cipher_algo() == "SEED" ||
-           cipher_algo() == "AES-128" || cipher_algo() == "AES-256" ||
-           cipher_algo() == "Camellia-128" || cipher_algo() == "Camellia-256");
+   return (mac_algo() != "AEAD");
    }
 
 Ciphersuite Ciphersuite::by_id(u16bit suite)
@@ -47,7 +45,7 @@ Ciphersuite Ciphersuite::by_id(u16bit suite)
    const std::vector<Ciphersuite>& all_suites = all_known_ciphersuites();
    auto s = std::lower_bound(all_suites.begin(), all_suites.end(), suite);
 
-   if(s->ciphersuite_code() == suite)
+   if(s != all_suites.end() && s->ciphersuite_code() == suite)
       {
       return *s;
       }
@@ -140,6 +138,12 @@ bool Ciphersuite::is_usable() const
    else if(kex_algo() == "DH" || kex_algo() == "DHE_PSK")
       {
 #if !defined(BOTAN_HAS_DIFFIE_HELLMAN)
+      return false;
+#endif
+      }
+   else if(kex_algo() == "CECPQ1")
+      {
+#if !defined(BOTAN_HAS_CECPQ1)
       return false;
 #endif
       }

@@ -11,7 +11,7 @@
 #if defined(BOTAN_HAS_ECDSA)
 
 #include <botan/internal/p11_mechanism.h>
-#include <botan/internal/pk_ops.h>
+#include <botan/pk_ops.h>
 #include <botan/keypair.h>
 #include <botan/rng.h>
 
@@ -47,9 +47,9 @@ ECDSA_PrivateKey PKCS11_ECDSA_PrivateKey::export_key() const
    return ECDSA_PrivateKey(rng, domain(), BigInt::decode(priv_key));
    }
 
-secure_vector<byte> PKCS11_ECDSA_PrivateKey::pkcs8_private_key() const
+secure_vector<byte> PKCS11_ECDSA_PrivateKey::private_key_bits() const
    {
-   return export_key().pkcs8_private_key();
+   return export_key().private_key_bits();
    }
 
 namespace {
@@ -60,16 +60,6 @@ class PKCS11_ECDSA_Signature_Operation : public PK_Ops::Signature
       PKCS11_ECDSA_Signature_Operation(const PKCS11_EC_PrivateKey& key, const std::string& emsa)
          : PK_Ops::Signature(), m_key(key), m_order(key.domain().get_order()), m_mechanism(MechanismWrapper::create_ecdsa_mechanism(emsa))
          {}
-
-      size_t message_parts() const override
-         {
-         return 2;
-         }
-
-      size_t message_part_size() const override
-         {
-         return m_order.bytes();
-         }
 
       void update(const byte msg[], size_t msg_len) override
          {
@@ -125,21 +115,6 @@ class PKCS11_ECDSA_Verification_Operation : public PK_Ops::Verification
       PKCS11_ECDSA_Verification_Operation(const PKCS11_EC_PublicKey& key, const std::string& emsa)
          : PK_Ops::Verification(), m_key(key), m_order(key.domain().get_order()), m_mechanism(MechanismWrapper::create_ecdsa_mechanism(emsa))
          {}
-
-      size_t message_parts() const override
-         {
-         return 2;
-         }
-
-      size_t message_part_size() const override
-         {
-         return m_order.bytes();
-         }
-
-      size_t max_input_bits() const override
-         {
-         return m_order.bits();
-         }
 
       void update(const byte msg[], size_t msg_len) override
          {

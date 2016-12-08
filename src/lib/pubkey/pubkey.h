@@ -30,6 +30,7 @@ enum Signature_Format { IEEE_1363, DER_SEQUENCE };
 
 /**
 * Public Key Encryptor
+* This is the primary interface for public key encryption
 */
 class BOTAN_DLL PK_Encryptor
    {
@@ -276,6 +277,7 @@ class BOTAN_DLL PK_Signer final
    private:
       std::unique_ptr<PK_Ops::Signature> m_op;
       Signature_Format m_sig_format;
+      size_t m_parts, m_part_size;
    };
 
 /**
@@ -389,6 +391,7 @@ class BOTAN_DLL PK_Verifier final
    private:
       std::unique_ptr<PK_Ops::Verification> m_op;
       Signature_Format m_sig_format;
+      size_t m_parts, m_part_size;
    };
 
 /**

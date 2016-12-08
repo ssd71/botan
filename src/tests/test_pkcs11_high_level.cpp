@@ -918,7 +918,7 @@ Test::Result test_ecdsa_privkey_export()
    ECDSA_PrivateKey exported = pk.export_key();
    result.test_success("ECDSA private key export was successful");
    result.confirm("Check exported key valid", exported.check_key(Test::rng(), true));
-   result.test_eq("Check exported key contents", exported.pkcs8_private_key(), priv_key.pkcs8_private_key());
+   result.test_eq("Check exported key contents", exported.private_key_bits(), priv_key.private_key_bits());
 
    pk.destroy();
    return result;
@@ -1330,6 +1330,7 @@ Test::Result test_rng_generate_random()
 
    PKCS11_RNG rng(test_session.session());
 
+   result.confirm("RNG already seeded", rng.is_seeded());
    std::vector<byte> random(20);
    rng.randomize(random.data(), random.size());
    result.test_ne("random data generated", random, std::vector<byte>(20));

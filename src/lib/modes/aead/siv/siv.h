@@ -1,6 +1,7 @@
 /*
 * SIV Mode
 * (C) 2013 Jack Lloyd
+* (C) 2016 Daniel Neus, Rohde & Schwarz Cybersecurity
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -45,6 +46,8 @@ class BOTAN_DLL SIV_Mode : public AEAD_Mode
       bool valid_nonce_length(size_t) const override;
 
       void clear() override;
+
+      void reset() override;
 
       size_t tag_size() const override { return 16; }
 
@@ -104,7 +107,7 @@ class BOTAN_DLL SIV_Decryption final : public SIV_Mode
 
       size_t output_length(size_t input_length) const override
          {
-         BOTAN_ASSERT(input_length > tag_size(), "Sufficient input");
+         BOTAN_ASSERT(input_length >= tag_size(), "Sufficient input");
          return input_length - tag_size();
          }
 

@@ -1,36 +1,98 @@
 Release Notes
 ========================================
 
-Version 1.11.34, Not Yet Released
+Version 1.11.35, Not Yet Released
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* Fix deref of invalid memory location in TLS client when the server chooses a
+  ciphersuite value larger than the largest TLS ciphersuite ID compiled into the
+  table. This might conceivably cause a crash in rare circumstances, but does
+  not seem to be further exploitable. (GH #758)
+
+* Rename Public_Key::x509_subject_public_key, which does not return a
+  X.509 SubjectPublicKey, to public_key_bits. Add a new non-virtual function
+  Public_Key::subject_public_key which does exactly that. (GH #685 #757)
+
+* Rename Private_Key::pkcs8_private_key, which does not return a
+  PKCS#8 private key, to private_key_bits. Add a new non-virtual function
+  Private_Key::private_key_info which does exactly that. (GH #685 #757)
+
+* The deprecated ECB Cipher_Mode class has been removed (GH #756)
+
+* Fix tests errors when write only access to /dev/urandom is prohibited (GH #748)
+
+Version 1.11.34, 2016-11-28
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* Fix integer overflow during BER decoding, found by Falko Strenzke.
+  This bug is not thought to be directly exploitable but upgrading ASAP
+  is advised. (CVE-2016-9132)
+
+* Add post-quantum signature scheme XMSS. Provides either 128 or 256 bit
+  (post-quantum) security, with small public and private keys, fast
+  verification, and reasonably small signatures (2500 bytes for 128-bit
+  security). Signature generation is very slow, on the order of seconds. And
+  very importantly the signature scheme is stateful: each leaf index must only
+  be used once, or all security is lost. In the appropriate system where
+  signatures are rarely generated (such as code signing) XMSS makes an excellent
+  choice. (GH #717 #736)
+
+* Add support for CECPQ1 TLS ciphersuites. These use a combination of x25519
+  ECDH and NewHope to provide post-quantum security. The ciphersuites are not
+  IETF standard, but is compatible with BoringSSL. (GH #729)
+
+* Add support for client-side OCSP stapling to TLS. (GH #738)
+
+* Previously both public and private keys performed automatic self testing after
+  generation or loading. However this often caused unexpected application
+  performance problems, and so has been removed. Instead applications must call
+  check_key explicitly. (GH #704)
 
 * Fix TLS session resumption bugs which caused resumption failures if an
   application used a single session cache for both TLS and DTLS. (GH #688)
 
+* Add SHAKE-128 and SHAKE-256 XOFs as hash functions supporting paramaterized
+  output lengths.
+
 * Add MessageAuthenticationCode::start_msg interface, for MACs which require or
   can use a nonce (GH #691)
 
-* Add GMAC, a MAC based on GCM which requires a nonce (GH #488 / #691)
+* Add GMAC, a MAC based on GCM (GH #488 / #691)
 
-* HMAC_DRBG allows configuring maximum number of bytes before a forced reseed
-  (GH #690)
+* Add ESP block cipher padding from RFC 4304. GH #724
+
+* Incompatible change to HKDF: previously the HKDF type in Botan was only the
+  Expand half of HKDF. Now HKDF is the full Extract-then-Expand KDF, and
+  HKDF_Extract and HKDF_Expand are available. If you previously used HKDF, you
+  must switch to using HKDF_Expand. (GH #723)
+
+* Add Cipher_Mode::reset which resets message-specific state, allowing
+  discarding state but allowing continued processing under the same key. (GH #552)
+
+* The ability to add OIDs at runtime has been removed. This additionally removes
+  a global lock which was acquired on each OID lookup. (GH #706)
+
+* The default TLS policy now disables static RSA ciphersuites, all DSA
+  ciphersuites, and the AES CCM-8 ciphersuites. Disabling static RSA by default
+  protects servers from oracle attacks, as well as enforcing a forward secure
+  ciphersuite. Some applications may be forced to re-enable RSA for interop
+  reasons. DSA and CCM-8 are rarely used, and likely should not be negotiated
+  outside of special circumstances.
+
+* The default TLS policy now prefers ChaCha20Poly1305 cipher over any AES mode.
+
+* The default TLS policy now orders ECC curve preferences in order by performance,
+  with x25519 first, then P-256, then P-521, then the rest.
+
+* Add a BSD sockets version of the HTTP client code used for OCSP. GH #699
+
+* Export the public key workfactor functions (GH #734) and add tests for them.
+
+* HMAC_DRBG allows configuring maximum number of bytes before reseed check (GH #690)
 
 * Salsa20 now accepts a null IV as equivalent to an all-zero one (GH #697)
 
 * Optimize ECKCDSA verification (GH #700 #701 #702)
-
-* A plain sockets version of the HTTP client has been added, so OCSP
-  checks occur even in non-Boost builds.
-
-* The default TLS policy now disables static RSA ciphersuites, all DSA ciphersuites,
-  and the AES CCM-8 ciphersuites.
-
-  Disabling static RSA by default protects servers from oracle attacks,
-  as well as enforcing a forward secure ciphersuite. Some applications
-  may be forced to re-enable RSA to interop with old or misconfigured peers.
-
-  DSA and CCM-8 are rarely used, and likely should not be negotiated
-  outside of special circumstances.
 
 * The deprecated RNGs HMAC_RNG and X9.31 RNG have been removed. Now the only
   userspace PRNG included in the library is HMAC_DRBG. (GH #692)
@@ -41,9 +103,49 @@ Version 1.11.34, Not Yet Released
 * The openpgp module (which just implemented OpenPGP compatible base64 encoding
   and decoding, nothing else) has been removed.
 
-* Add more tests for Pipe/Filter (GH #689 #693)
+* Added new configure.py argument `--optimize-for-size`. Currently just sets
+  the flag for code size optimizations with the compiler, but may have other
+  effects in the future.
 
-* Merged the fuzzer tests, previously https://github.com/randombit/botan-fuzzers
+* Fixed bug in Threaded_Fork causing incorrect computations (GH #695 #716)
+
+* Add DSA deterministic parameter generation test from FIPS 186-3.
+
+* Fix PKCS11_ECDSA_PrivateKey::check_key (GH #712)
+
+* Fixed problems running configure.py outside of the base directory
+
+* The BOTAN_ENTROPY_PROC_FS_PATH value in build.h was being ignored (GH #708)
+
+* Add speed tests for ECGDSA and ECKCDSA (GH #696)
+
+* Fix a crash in speed command for Salsa20 (GH #697)
+
+* Allow a custom ECC curve to be specified at build time, for application or
+  system specific curves. (GH #636 #710)
+
+* Use NOMINMAX on Windows to avoid problems in amalgamation build. (GH #740)
+
+* Add support to output bakefiles with new `configure.py` option `--with-bakefile`.
+  (GH #360 #720)
+
+* The function `zero_mem` has been renamed `secure_scrub_memory`
+
+* More tests for pipe/filter (GH #689 #693), AEADs (GH #552), KDF::name (GH #727),
+
+* Add a test suite for timing analysis for TLS CBC decryption, OAEP decryption,
+  and PKCS #1 v1.5 decryption. These operations all have the feature that if an
+  attacker can distinguish internal operations, such as through a variance in
+  timing, they can use this oracle to decrypt arbitrary ciphertexts. GH #733
+
+* Add a test suite for testing and fuzzing with TLS-Attacker, a tool for
+  analyzing TLS libraries. (https://github.com/RUB-NDS/TLS-Attacker)
+
+* Add a fuzzing framework. Supports fuzzing some APIs using AFL and libFuzzer.
+
+* Added documentation for PKCS #11 (GH #725)
+
+* The LibraryInitializer type is no longer needed and is now deprecated.
 
 * The license and news files were moved from doc to the top level directory.
   There should not be any other visible change (eg, to the installed version)
@@ -52,50 +154,23 @@ Version 1.11.34, Not Yet Released
 * Fixed some problems when running configure.py outside of the base directory,
   especially when using relative paths.
 
-* Previously both public and private keys performed automatic self testing after
-  generation or loading. However this often caused unexpected application
-  performance problems, and so has been removed. Instead applications must call
-  check_key explicitly. (GH #704)
+* Add (back) the Perl XS wrapper and sqlite encryption code.
 
-* Added new configure.py argument `--optimize-for-size`. Currently just sets
-  the flag for code size optimizations with the compiler, but may have other
-  effects in the future.
+Version 1.10.14, 2016-11-28
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* Allow a custom ECC curve to be specified at build time, for application or
-  system specific curves. You probably don't need this. (GH #636 #710)
+* NOTE WELL: Botan 1.10.x is supported for security patches only until
+  2017-12-31
 
-* Add DSA deterministic parameter generation test from FIPS 186-3.
+* Fix integer overflow during BER decoding, found by Falko Strenzke.
+  This bug is not thought to be directly exploitable but upgrading ASAP
+  is advised. (CVE-2016-9132)
 
-* Fix PKCS11_ECDSA_PrivateKey::check_key (GH #712)
+* Fix two cases where (in error situations) an exception would be
+  thrown from a destructor, causing a call to std::terminate.
 
-* The ability to add OIDs at runtime has been removed. Now the OID
-  lookups are generated from a plain text file (src/build-data/oids.txt)
-  by a script. This additionally removes a global lock which was acquired
-  on each OID lookup. (GH #706)
-
-* Remove some unused values from build.h (GH #708)
-
-* The BOTAN_ENTROPY_PROC_FS_PATH value in build.h was being ignored (GH #708)
-
-* Add speed tests for ECGDSA and ECKCDSA (GH #696)
-
-* Fix a crash in speed command for Salsa20 (GH #697)
-
-* Add support to output bakefiles with new `configure.py` option `--with-bakefile`.
-  Bakefile creates Visual Studio or Xcode project files for example.
-
-* The function `zero_mem` has been renamed `secure_scrub_memory` to be
-  more clear about this functions semantics and intended usage.
-
-* The LibraryInitializer type, which has been a no-op since 1.11.14,
-  is now officially deprecated. It does nothing, has done nothing, and
-  will continue not doing anything, until it is eventually removed in
-  a future release. At which point it may indeed cease doing nothing.
-
-* In 1.11.21 the Perl XS wrapper and sqlite encryption codec were
-  removed to standalone repos. But, it is easier to maintain all
-  related code inside a single repo so they have returned under
-  src/contrib.
+* When RC4 is disabled in the build, also prevent it from being
+  included in the OpenSSL provider. (GH #638)
 
 Version 1.11.33, 2016-10-26
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -593,7 +668,7 @@ Version 1.11.29, 2016-03-20
 
 * Support for locking allocator on Windows using VirtualLock. GH #450
 
-Version 1.18.15, 2016-02-13
+Version 1.8.15, 2016-02-13
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 * NOTE WELL: Botan 1.8 is not supported for security issues anymore.
   Moving to 1.10 or 1.11 is certainly recommended.

@@ -6,6 +6,7 @@
 */
 
 #include <botan/kdf.h>
+#include <botan/mac.h>
 #include <botan/scan_name.h>
 #include <botan/exceptn.h>
 
@@ -75,6 +76,22 @@ std::unique_ptr<KDF> KDF::create(const std::string& algo_spec,
       if(provider.empty() || provider == "base")
          {
          return kdf_create_mac_or_hash<HKDF>(req.arg(0));
+         }
+      }
+
+   if(req.algo_name() == "HKDF-Extract" && req.arg_count() == 1)
+      {
+      if(provider.empty() || provider == "base")
+         {
+         return kdf_create_mac_or_hash<HKDF_Extract>(req.arg(0));
+         }
+      }
+
+   if(req.algo_name() == "HKDF-Expand" && req.arg_count() == 1)
+      {
+      if(provider.empty() || provider == "base")
+         {
+         return kdf_create_mac_or_hash<HKDF_Expand>(req.arg(0));
          }
       }
 #endif

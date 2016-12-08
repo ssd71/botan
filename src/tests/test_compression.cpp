@@ -12,6 +12,8 @@
 
 namespace Botan_Tests {
 
+#if defined(BOTAN_HAS_COMPRESSION)
+
 namespace {
 
 const char* text_str =
@@ -50,8 +52,6 @@ const char* text_str =
    "All mimsy were the borogoves,"
    "And the mome raths outgrabe.";
 
-#if defined(BOTAN_HAS_COMPRESSION)
-
 class Compression_Tests : public Test
    {
    public:
@@ -74,6 +74,8 @@ class Compression_Tests : public Test
                   result.note_missing(algo);
                   continue;
                   }
+
+               result.test_ne("Not the same name", c->name(), d->name());
 
                const Botan::secure_vector<uint8_t> empty;
                const Botan::secure_vector<uint8_t> all_zeros(text_len, 0);
@@ -140,8 +142,8 @@ class Compression_Tests : public Test
 
 BOTAN_REGISTER_TEST("compression", Compression_Tests);
 
-#endif
-
 }
+
+#endif
 
 }

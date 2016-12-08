@@ -1,4 +1,4 @@
-/**
+/*
  * (C) Copyright Projet SECRET, INRIA, Rocquencourt
  * (C) Bhaskar Biswas and  Nicolas Sendrier
  *
@@ -69,7 +69,7 @@ AlgorithmIdentifier McEliece_PublicKey::algorithm_identifier() const
    return AlgorithmIdentifier(get_oid(), std::vector<byte>());
    }
 
-std::vector<byte> McEliece_PublicKey::x509_subject_public_key() const
+std::vector<byte> McEliece_PublicKey::public_key_bits() const
    {
    return DER_Encoder()
       .start_cons(SEQUENCE)
@@ -87,6 +87,11 @@ McEliece_PublicKey::McEliece_PublicKey(const McEliece_PublicKey & other) :
    m_t(other.m_t),
    m_code_length(other.m_code_length)
    {
+   }
+
+size_t McEliece_PublicKey::key_length() const
+   {
+   return m_code_length;
    }
 
 size_t McEliece_PublicKey::estimated_strength() const
@@ -110,7 +115,7 @@ McEliece_PublicKey::McEliece_PublicKey(const std::vector<byte>& key_bits)
    m_code_length = n;
    }
 
-secure_vector<byte> McEliece_PrivateKey::pkcs8_private_key() const
+secure_vector<byte> McEliece_PrivateKey::private_key_bits() const
    {
    DER_Encoder enc;
    enc.start_cons(SEQUENCE)

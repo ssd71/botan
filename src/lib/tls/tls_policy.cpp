@@ -21,9 +21,9 @@ std::vector<std::string> Policy::allowed_ciphers() const
    return {
       //"AES-256/OCB(12)",
       //"AES-128/OCB(12)",
+      "ChaCha20Poly1305",
       "AES-256/GCM",
       "AES-128/GCM",
-      "ChaCha20Poly1305",
       "AES-256/CCM",
       "AES-128/CCM",
       //"AES-256/CCM(8)",
@@ -71,6 +71,7 @@ std::vector<std::string> Policy::allowed_key_exchange_methods() const
       //"ECDHE_PSK",
       //"DHE_PSK",
       //"PSK",
+      "CECPQ1",
       "ECDH",
       "DH",
       //"RSA",
@@ -94,14 +95,16 @@ bool Policy::allowed_signature_method(const std::string& sig_method) const
 
 std::vector<std::string> Policy::allowed_ecc_curves() const
    {
+   // Default list is ordered by performance
+
    return {
-      "brainpool512r1",
+      "x25519",
+      "secp256r1",
       "secp521r1",
-      "brainpool384r1",
       "secp384r1",
       "brainpool256r1",
-      "secp256r1",
-      "x25519",
+      "brainpool384r1",
+      "brainpool512r1",
       };
    }
 
@@ -153,6 +156,16 @@ size_t Policy::minimum_ecdh_group_size() const
    return 255;
    }
 
+size_t Policy::minimum_signature_strength() const
+   {
+   return 110;
+   }
+
+bool Policy::require_cert_revocation_info() const
+   {
+   return true;
+   }
+
 size_t Policy::minimum_rsa_bits() const
    {
    /* Default assumption is all end-entity certificates should
@@ -175,14 +188,12 @@ void Policy::check_peer_key_acceptable(const Public_Key& public_key) const
    {
    const std::string algo_name = public_key.algo_name();
 
-   // FIXME this is not really the right way to do this 
-   size_t keylength = public_key.max_input_bits();
+   const size_t keylength = public_key.key_length();
    size_t expected_keylength = 0;
 
    if(algo_name == "RSA")
       {
       expected_keylength = minimum_rsa_bits();
-      keylength += 1; // fixup for use of max_input_bits above
       }
    else if(algo_name == "DH")
       {
@@ -465,6 +476,14 @@ void Policy::print(std::ostream& o) const
    o << "minimum_dh_group_size = " << minimum_dh_group_size() << '\n';
    o << "minimum_ecdh_group_size = " << minimum_ecdh_group_size() << '\n';
    o << "minimum_rsa_bits = " << minimum_rsa_bits() << '\n';
+   o << "minimum_signature_strength = " << minimum_signature_strength() << '\n';
+   }
+
+std::string Policy::to_string() const
+   {
+   std::ostringstream oss;
+   this->print(oss);
+   return oss.str();
    }
 
 std::vector<std::string> Strict_Policy::allowed_ciphers() const
@@ -484,7 +503,7 @@ std::vector<std::string> Strict_Policy::allowed_macs() const
 
 std::vector<std::string> Strict_Policy::allowed_key_exchange_methods() const
    {
-   return { "ECDH" };
+   return { "CECPQ1", "ECDH" };
    }
 
 bool Strict_Policy::allow_tls10()  const { return false; }

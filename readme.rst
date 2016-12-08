@@ -103,9 +103,9 @@ Versions 1.11 and later require a working C++11 compiler; GCC 4.8 and later,
 Clang 3.5 and later, and MSVC 2015 are regularly tested.
 
 The latest 1.11 release is
-`1.11.33 <http://botan.randombit.net/releases/Botan-1.11.33.tgz>`_
-`(sig) <http://botan.randombit.net/releases/Botan-1.11.33.tgz.asc>`_
-released on 2016-10-26
+`1.11.34 <http://botan.randombit.net/releases/Botan-1.11.34.tgz>`_
+`(sig) <http://botan.randombit.net/releases/Botan-1.11.34.tgz.asc>`_
+released on 2016-11-28
 
 Old Stable Series (1.10)
 ----------------------------------------
@@ -116,9 +116,9 @@ critical security updates (with all support ending on 2018-1-1), and the
 developers do not recommend its use anymore.
 
 The latest 1.10 release is
-`1.10.13 <http://botan.randombit.net/releases/Botan-1.10.13.tgz>`_
-`(sig) <http://botan.randombit.net/releases/Botan-1.10.13.tgz.asc>`_
-released on 2016-04-23
+`1.10.14 <http://botan.randombit.net/releases/Botan-1.10.14.tgz>`_
+`(sig) <http://botan.randombit.net/releases/Botan-1.10.14.tgz.asc>`_
+released on 2016-11-28
 
 Books and other resources
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -170,6 +170,7 @@ Public Key Cryptography
 * RSA signatures and encryption
 * DH and ECDH key agreement
 * Signature schemes DSA, ECDSA, ECGDSA, ECKCDSA, GOST 34.10-2001
+* Post-quantum XMSS (hash based) signature scheme
 * Post-quantum KEM schemes McEliece (code based) and NewHope (Ring-LWE)
 * ElGamal encryption
 * Padding schemes OAEP, PSS, PKCS #1 v1.5, X9.31
@@ -194,7 +195,7 @@ Hash functions and MACs
 * SHA-3 (and Keccak-1600)
 * Skein-512, BLAKE2b
 * RIPEMD-160, Tiger, Whirlpool, GOST 34.11
-* Authentication codes HMAC, CMAC, Poly1305, SipHash
+* Authentication codes CMAC, GMAC, HMAC, Poly1305, SipHash
 * Hash function combiners (Parallel and Comb4P)
 * Non-cryptographic checksums Adler32, CRC24, CRC32
 * Obsolete algorithms MD5, MD4, CBC-MAC, X9.19 DES-MAC

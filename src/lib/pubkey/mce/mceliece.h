@@ -1,4 +1,4 @@
-/**
+/*
  * (C) Copyright Projet SECRET, INRIA, Rocquencourt
  * (C) Bhaskar Biswas and  Nicolas Sendrier
  *
@@ -35,17 +35,12 @@ class BOTAN_DLL McEliece_PublicKey : public virtual Public_Key
 
       std::string algo_name() const override { return "McEliece"; }
 
-      /**
-      * Get the maximum number of bits allowed to be fed to this key.
-      * @result the maximum number of input bits
-      */
-      size_t max_input_bits() const override { return get_message_word_bit_length(); }
-
       AlgorithmIdentifier algorithm_identifier() const override;
 
+      size_t key_length() const override;
       size_t estimated_strength() const override;
 
-      std::vector<byte> x509_subject_public_key() const override;
+      std::vector<byte> public_key_bits() const override;
 
       bool check_key(RandomNumberGenerator&, bool) const override
          { return true; }
@@ -75,11 +70,6 @@ class BOTAN_DLL McEliece_PrivateKey : public virtual McEliece_PublicKey,
                                       public virtual Private_Key
    {
    public:
-      /**
-      * Get the maximum number of bits allowed to be fed to this key.
-      * @result the maximum number of input bits
-      */
-      size_t max_input_bits() const override { return m_Linv.size(); }
 
       /**
       Generate a McEliece key pair
@@ -114,7 +104,7 @@ class BOTAN_DLL McEliece_PrivateKey : public virtual McEliece_PublicKey,
 
       inline u32bit get_codimension() const { return m_codimension; }
 
-      secure_vector<byte> pkcs8_private_key() const override;
+      secure_vector<byte> private_key_bits() const override;
 
       bool operator==(const McEliece_PrivateKey & other) const;
 

@@ -40,6 +40,7 @@ ecgdsa
 ecies
 eckcdsa
 ecdh
+xmss
 
 # rng
 auto_rng
@@ -102,7 +103,6 @@ eax
 ocb
 siv
 cfb
-ecb
 
 # stream
 chacha
@@ -139,6 +139,7 @@ md4
 rmd160
 #sha1 // needed for tls
 #sha1_sse2 // needed for tls
+shake
 skein
 tiger
 whirlpool

@@ -1,6 +1,7 @@
 /*
 * ChaCha20Poly1305 AEAD
 * (C) 2014 Jack Lloyd
+* (C) 2016 Daniel Neus, Rohde & Schwarz Cybersecurity
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -37,6 +38,9 @@ class BOTAN_DLL ChaCha20Poly1305_Mode : public AEAD_Mode
       size_t tag_size() const override { return 16; }
 
       void clear() override;
+
+      void reset() override;
+
    protected:
       std::unique_ptr<StreamCipher> m_chacha;
       std::unique_ptr<MessageAuthenticationCode> m_poly1305;
@@ -79,7 +83,7 @@ class BOTAN_DLL ChaCha20Poly1305_Decryption final : public ChaCha20Poly1305_Mode
    public:
       size_t output_length(size_t input_length) const override
          {
-         BOTAN_ASSERT(input_length > tag_size(), "Sufficient input");
+         BOTAN_ASSERT(input_length >= tag_size(), "Sufficient input");
          return input_length - tag_size();
          }
 

@@ -13,13 +13,16 @@
 #include <botan/mceliece.h>
 #include <botan/pubkey.h>
 #include <botan/oids.h>
-#include <botan/hmac_drbg.h>
 #include <botan/loadstor.h>
 #include <botan/hash.h>
 #include <botan/hex.h>
 
+#if defined(BOTAN_HAS_HMAC_DRBG)
+  #include <botan/hmac_drbg.h>
+#endif
+
 #if defined(BOTAN_HAS_MCEIES)
-#include <botan/mceies.h>
+  #include <botan/mceies.h>
 #endif
 
 #endif
@@ -30,21 +33,7 @@ namespace {
 
 #if defined(BOTAN_HAS_MCELIECE)
 
-std::vector<byte> hash_bytes(const byte b[], size_t len, const std::string& hash_fn = "SHA-256")
-   {
-   std::unique_ptr<Botan::HashFunction> hash(Botan::HashFunction::create(hash_fn));
-   hash->update(b, len);
-   std::vector<byte> r(hash->output_length());
-   hash->final(r.data());
-   return r;
-   }
-
-template<typename A>
-std::vector<byte> hash_bytes(const std::vector<byte, A>& v)
-   {
-   return hash_bytes(v.data(), v.size());
-   }
-
+#if defined(BOTAN_HAS_HMAC_DRBG)
 class McEliece_Keygen_Encrypt_Test : public Text_Based_Test
    {
    public:
@@ -73,8 +62,8 @@ class McEliece_Keygen_Encrypt_Test : public Text_Based_Test
 
          Test::Result result("McEliece keygen");
 
-         result.test_eq("public key fingerprint", hash_bytes(mce_priv.x509_subject_public_key()), fprint_pub);
-         result.test_eq("private key fingerprint", hash_bytes(mce_priv.pkcs8_private_key()), fprint_priv);
+         result.test_eq("public key fingerprint", hash_bytes(mce_priv.public_key_bits()), fprint_pub);
+         result.test_eq("private key fingerprint", hash_bytes(mce_priv.private_key_bits()), fprint_priv);
 
          rng.clear();
          rng.initialize_with(encrypt_seed.data(), encrypt_seed.size());
@@ -100,9 +89,26 @@ class McEliece_Keygen_Encrypt_Test : public Text_Based_Test
          return result;
          }
 
+   private:
+      std::vector<byte> hash_bytes(const byte b[], size_t len, const std::string& hash_fn = "SHA-256")
+         {
+         std::unique_ptr<Botan::HashFunction> hash(Botan::HashFunction::create(hash_fn));
+         hash->update(b, len);
+         std::vector<byte> r(hash->output_length());
+         hash->final(r.data());
+         return r;
+         }
+
+      template<typename A>
+      std::vector<byte> hash_bytes(const std::vector<byte, A>& v)
+         {
+         return hash_bytes(v.data(), v.size());
+         }
+
    };
 
 BOTAN_REGISTER_TEST("mce_keygen", McEliece_Keygen_Encrypt_Test);
+#endif
 
 class McEliece_Tests : public Test
    {
@@ -114,7 +120,7 @@ class McEliece_Tests : public Test
          if(!hash)
             throw Test_Error("Hash " + hash_algo + " not available");
 
-         hash->update(key.pkcs8_private_key());
+         hash->update(key.private_key_bits());
          return Botan::hex_encode(hash->final());
          }
 
@@ -124,7 +130,7 @@ class McEliece_Tests : public Test
          if(!hash)
             throw Test_Error("Hash " + hash_algo + " not available");
 
-         hash->update(key.x509_subject_public_key());
+         hash->update(key.public_key_bits());
          return Botan::hex_encode(hash->final());
          }
 
@@ -147,8 +153,8 @@ class McEliece_Tests : public Test
                Botan::McEliece_PrivateKey sk1(Test::rng(), param_sets[i].code_length, t);
                const Botan::McEliece_PublicKey& pk1 = sk1;
 
-               const std::vector<byte> pk_enc = pk1.x509_subject_public_key();
-               const Botan::secure_vector<byte> sk_enc = sk1.pkcs8_private_key();
+               const std::vector<byte> pk_enc = pk1.public_key_bits();
+               const Botan::secure_vector<byte> sk_enc = sk1.private_key_bits();
 
                Botan::McEliece_PublicKey pk(pk_enc);
                Botan::McEliece_PrivateKey sk(sk_enc);

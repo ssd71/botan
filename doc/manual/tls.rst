@@ -66,12 +66,12 @@ information about the connection.
      For DTLS, it is possible to receive records with the `rec_no` field out of
      order, or with gaps, cooresponding to reordered or lost datagrams.
 
- .. cpp:function:: void tls_alert(Alert alert) 
+ .. cpp:function:: void tls_alert(Alert alert)
 
      Mandatory. Called when an alert is received from the peer. Note that alerts
      received before the handshake is complete are not authenticated and
      could have been inserted by a MITM attacker.
-     
+
  .. cpp:function:: bool tls_session_established(const TLS::Session& session)
 
      Mandatory. Called whenever a negotiation completes. This can happen more
@@ -84,6 +84,46 @@ information about the connection.
      If this function wishes to cancel the handshake, it can throw an
      exception which will send a close message to the counterparty and
      reset the connection state.
+
+ .. cpp::function:: void tls_verify_cert_chain(const std::vector<X509_Certificate>& cert_chain, \
+                   const std::vector<std::shared_ptr<const OCSP::Response>>& ocsp_responses, \
+                   const std::vector<Certificate_Store*>& trusted_roots, \
+                   Usage_Type usage, \
+                   const std::string& hostname, \
+                   const Policy& policy)
+
+     Optional - default implementation should work for many users.
+     It can be overrided for implementing extra validation routines
+     such as public key pinning.
+
+     Verifies the certificate chain in *cert_chain*, assuming the leaf
+     certificate is the first element. Throws an exception if any
+     error makes this certificate chain unacceptable.
+
+     If usage is `Usage_Type::TLS_SERVER_AUTH`, then *hostname* should
+     match the information in the server certificate. If usage is
+     `TLS_CLIENT_AUTH`, then *hostname* specifies the host the client
+     is authenticating against (from SNI); the callback can use this for
+     any special site specific auth logic.
+
+     The `ocsp_responses` is a possibly empty list of OCSP responses provided by
+     the server. In the current implementation of TLS OCSP stapling, only a
+     single OCSP response can be returned. A existing TLS extension allows the
+     server to send multiple OCSP responses, this extension may be supported in
+     the future in which case more than one OCSP response may be given during
+     this callback.
+
+     The `trusted_roots` parameter was returned by a call from the associated
+     `Credentials_Manager`.
+
+     The `policy` provided is the policy for the TLS session which is
+     being authenticated using this certificate chain. It can be consulted
+     for values such as allowable signature methods and key sizes.
+
+ .. cpp::function:: std::chrono::milliseconds tls_verify_cert_chain_ocsp_timeout() const
+
+     Called by default `tls_verify_cert_chain` to set timeout for online OCSP requests
+     on the certificate chain. Return 0 to disable OCSP. Current default is 0.
 
  .. cpp:function:: std::string tls_server_choose_app_protocol(const std::vector<std::string>& client_protos)
 
@@ -522,7 +562,7 @@ policy settings from a file.
 
      Cipher names without an explicit mode refers to CBC+HMAC ciphersuites.
 
-     Default value: "AES-256/GCM", "AES-128/GCM", "ChaCha20Poly1305",
+     Default value: "ChaCha20Poly1305", "AES-256/GCM", "AES-128/GCM",
      "AES-256/CCM", "AES-128/CCM", "AES-256", "AES-128"
 
      Also allowed: "AES-256/CCM(8)", "AES-128/CCM(8)",
@@ -567,7 +607,7 @@ policy settings from a file.
      Returns the list of key exchange methods we are willing to use,
      in order of preference.
 
-     Default: "ECDH", "DH"
+     Default: "CECPQ1", "ECDH", "DH"
 
      Also allowed: "RSA", "SRP_SHA", "ECDHE_PSK", "DHE_PSK", "PSK"
 
@@ -607,9 +647,10 @@ policy settings from a file.
  .. cpp:function:: std::vector<std::string> allowed_ecc_curves() const
 
      Return a list of ECC curves we are willing to use, in order of preference.
+     The default ordering puts the best performing ECC first.
 
-     Default: "brainpool512r1", "secp521r1", "brainpool384r1",
-     "secp384r1", "brainpool256r1", "secp256r1", "x25519"
+     Default: "x25519", "secp256r1", "secp521r1", "secp384r1",
+     "brainpool256r1", "brainpool384r1", "brainpool512r1"
 
      No other values are currently defined.
 
@@ -677,6 +718,26 @@ policy settings from a file.
      .. warning:: Returning true here could expose you to attacks
 
      Default: false
+
+ .. cpp:function:: size_t minimum_signature_strength() const
+
+     Return the minimum strength (as ``n``, representing ``2**n`` work)
+     we will accept for a signature algorithm on any certificate.
+
+     Use 80 to enable RSA-1024 (*not recommended*), or 128 to require
+     either ECC or large (~3000 bit) RSA keys.
+
+     Default: 110 (allowing 2048 bit RSA)
+
+ .. cpp:function:: bool require_cert_revocation_info() const
+
+     If this function returns true, and a ciphersuite using certificates was
+     negotiated, then we must have access to a valid CRL or OCSP response in
+     order to trust the certificate.
+
+     .. warning:: Returning false here could expose you to attacks
+
+     Default: true
 
  .. cpp:function:: std::string dh_group() const
 

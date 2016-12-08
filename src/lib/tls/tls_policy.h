@@ -57,6 +57,22 @@ class BOTAN_DLL Policy
       */
       virtual std::vector<std::string> allowed_signature_methods() const;
 
+      /**
+      * The minimum signature strength we will accept
+      * Returning 80 allows RSA 1024 and SHA-1. Values larger than 80 disable SHA-1 support.
+      * Returning 110 allows RSA 2048.
+      * Return 128 to force ECC (P-256) or large (~3000 bit) RSA keys.
+      * Default is 110
+      */
+      virtual size_t minimum_signature_strength() const;
+
+      /**
+      * Return if cert revocation info (CRL/OCSP) is required
+      * If true, validation will fail unless a valid CRL or OCSP response
+      * was examined.
+      */
+      virtual bool require_cert_revocation_info() const;
+
       bool allowed_signature_method(const std::string& sig_method) const;
 
       /**
@@ -275,6 +291,12 @@ class BOTAN_DLL Policy
       */
       virtual void print(std::ostream& o) const;
 
+      /**
+      * Convert this policy to a printable format.
+      * Same as calling `print` on a ostringstream and reading o.str()
+      */
+      std::string to_string() const;
+
       virtual ~Policy() {}
    };
 
@@ -301,7 +323,9 @@ class BOTAN_DLL NSA_Suite_B_128 : public Policy
 
       std::vector<std::string> allowed_ecc_curves() const override
          { return std::vector<std::string>({"secp256r1"}); }
-            
+
+      size_t minimum_signature_strength() const override { return 128; }
+
       bool allow_tls10()  const override { return false; }
       bool allow_tls11()  const override { return false; }
       bool allow_tls12()  const override { return true;  }
@@ -419,7 +443,10 @@ class BOTAN_DLL Text_Policy : public Policy
 
       size_t minimum_rsa_bits() const override
          { return get_len("minimum_rsa_bits", Policy::minimum_rsa_bits()); }
-      
+
+      size_t minimum_signature_strength() const override
+         { return get_len("minimum_signature_strength", Policy::minimum_signature_strength()); }
+
       bool hide_unknown_users() const override
          { return get_bool("hide_unknown_users", Policy::hide_unknown_users()); }
 

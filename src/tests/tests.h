@@ -230,6 +230,8 @@ class Test
 
             bool test_ne(const std::string& what, size_t produced, size_t expected);
 
+            bool test_ne(const std::string& what, const std::string& str1, const std::string& str2);
+
 #if defined(BOTAN_HAS_BIGINT)
             bool test_eq(const std::string& what, const BigInt& produced, const BigInt& expected);
             bool test_ne(const std::string& what, const BigInt& produced, const BigInt& expected);
@@ -330,7 +332,9 @@ class Test
 
       template<typename Alloc>
       static std::vector<uint8_t, Alloc>
-      mutate_vec(const std::vector<uint8_t, Alloc>& v, bool maybe_resize = false)
+      mutate_vec(const std::vector<uint8_t, Alloc>& v,
+                 bool maybe_resize = false,
+                 size_t min_offset = 0)
          {
          auto& rng = Test::rng();
 
@@ -344,10 +348,11 @@ class Test
             rng.randomize(&r[r.size() - add], add);
             }
 
-         if(r.size() > 0)
+         if(r.size() > min_offset)
             {
-            const size_t offset = rng.next_byte() % r.size();
-            r[offset] ^= rng.next_nonzero_byte();
+            const size_t offset = std::max<size_t>(min_offset, rng.next_byte() % r.size());
+            const byte perturb = rng.next_nonzero_byte();
+            r[offset] ^= perturb;
             }
 
          return r;
@@ -355,12 +360,14 @@ class Test
 
       static void setup_tests(size_t soak,
                               bool log_succcss,
+                              bool run_online_tests,
                               const std::string& data_dir,
                               const std::string& pkcs11_lib,
                               Botan::RandomNumberGenerator* rng);
 
       static size_t soak_level();
       static bool log_success();
+      static bool run_online_tests();
       static std::string pkcs11_lib();
 
       static const std::string& data_dir();
@@ -373,7 +380,7 @@ class Test
       static std::string m_data_dir;
       static Botan::RandomNumberGenerator* m_test_rng;
       static size_t m_soak_level;
-      static bool m_log_success;
+      static bool m_log_success, m_run_online_tests;
       static std::string m_pkcs11_lib;
    };
 

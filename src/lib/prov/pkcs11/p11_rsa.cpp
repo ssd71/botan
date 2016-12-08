@@ -11,8 +11,7 @@
 #if defined(BOTAN_HAS_RSA)
 
 #include <botan/internal/p11_mechanism.h>
-#include <botan/internal/pk_ops.h>
-#include <botan/internal/pk_ops.h>
+#include <botan/pk_ops.h>
 #include <botan/rng.h>
 #include <botan/blinding.h>
 
@@ -102,9 +101,9 @@ RSA_PrivateKey PKCS11_RSA_PrivateKey::export_key() const
                          , BigInt::decode(n));
    }
 
-secure_vector<byte> PKCS11_RSA_PrivateKey::pkcs8_private_key() const
+secure_vector<byte> PKCS11_RSA_PrivateKey::private_key_bits() const
    {
-   return export_key().pkcs8_private_key();
+   return export_key().private_key_bits();
    }
 
 
@@ -126,11 +125,6 @@ class PKCS11_RSA_Decryption_Operation final : public PK_Ops::Decryption
                      [ this ](const BigInt& k) { return inverse_mod(k, m_key.get_n()); })
          {
          m_bits = m_key.get_n().bits() - 1;
-         }
-
-      size_t max_input_bits() const override
-         {
-         return m_bits;
          }
 
       secure_vector<byte> decrypt(byte& valid_mask, const byte ciphertext[], size_t ciphertext_len) override
@@ -208,11 +202,6 @@ class PKCS11_RSA_Signature_Operation : public PK_Ops::Signature
          : m_key(key), m_mechanism(MechanismWrapper::create_rsa_sign_mechanism(padding))
          {}
 
-      size_t message_part_size() const override
-         {
-         return m_key.get_n().bytes();
-         }
-
       void update(const byte msg[], size_t msg_len) override
          {
          if(!m_initialized)
@@ -267,16 +256,6 @@ class PKCS11_RSA_Verification_Operation : public PK_Ops::Verification
       PKCS11_RSA_Verification_Operation(const PKCS11_RSA_PublicKey& key, const std::string& padding)
          : m_key(key), m_mechanism(MechanismWrapper::create_rsa_sign_mechanism(padding))
          {}
-
-      size_t message_part_size() const override
-         {
-         return m_key.get_n().bytes();
-         }
-
-      size_t max_input_bits() const override
-         {
-         return m_key.get_n().bits() - 1;
-         }
 
       void update(const byte msg[], size_t msg_len) override
          {

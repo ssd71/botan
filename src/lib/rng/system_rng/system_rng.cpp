@@ -10,9 +10,8 @@
 #if defined(BOTAN_TARGET_OS_HAS_CRYPTGENRANDOM)
 
 #include <windows.h>
+#define NOMINMAX 1
 #include <wincrypt.h>
-#undef min
-#undef max
 
 #else
 
@@ -136,8 +135,11 @@ void System_RNG_Impl::add_entropy(const uint8_t input[], size_t len)
          * by the OS or sysadmin that additional entropy is not wanted
          * in the system pool, so we accept that and return here,
          * since there is no corrective action possible.
+	 *
+	 * In Linux EBADF or EPERM is returned if m_fd is not opened for
+	 * writing.
          */
-         if(errno == EPERM)
+         if(errno == EPERM || errno == EBADF)
             return;
 
          // maybe just ignore any failure here and return?

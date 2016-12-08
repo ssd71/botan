@@ -10,6 +10,8 @@
 #if defined(BOTAN_HAS_TLS) && defined(BOTAN_TARGET_OS_HAS_SOCKETS)
 
 #include <botan/tls_client.h>
+#include <botan/x509path.h>
+#include <botan/ocsp.h>
 #include <botan/hex.h>
 
 #if defined(BOTAN_HAS_TLS_SQLITE3_SESSION_MANAGER)
@@ -91,13 +93,14 @@ class TLS_Client final : public Command, public Botan::TLS::Callbacks
          const std::string host = get_arg("host");
          const uint16_t port = get_arg_sz("port");
          const std::string transport = get_arg("type");
+         const std::string next_protos = get_arg("next-protocols");
 
          if(transport != "tcp" && transport != "udp")
             throw CLI_Usage_Error("Invalid transport type '" + transport + "' for TLS");
 
          const bool use_tcp = (transport == "tcp");
 
-         const std::vector<std::string> protocols_to_offer = Botan::split_on("next-protocols", ',');
+         const std::vector<std::string> protocols_to_offer = Botan::split_on(next_protos, ',');
 
          m_sockfd = connect_to_host(host, port, use_tcp);
 
@@ -240,13 +243,49 @@ class TLS_Client final : public Command, public Botan::TLS::Callbacks
 
          socket_info.sin_addr = *reinterpret_cast<struct in_addr*>(host_addr->h_addr); // FIXME
 
-         if(::connect(fd, (sockaddr*)&socket_info, sizeof(struct sockaddr)) != 0)
+         if(::connect(fd, reinterpret_cast<sockaddr*>(&socket_info), sizeof(struct sockaddr)) != 0)
             {
             ::close(fd);
             throw CLI_Error("connect failed");
             }
 
          return fd;
+         }
+
+      void tls_verify_cert_chain(
+         const std::vector<Botan::X509_Certificate>& cert_chain,
+         const std::vector<std::shared_ptr<const Botan::OCSP::Response>>& ocsp,
+         const std::vector<Botan::Certificate_Store*>& trusted_roots,
+         Botan::Usage_Type usage,
+         const std::string& hostname,
+         const Botan::TLS::Policy& policy) override
+         {
+         if(cert_chain.empty())
+            throw std::invalid_argument("Certificate chain was empty");
+
+         Botan::Path_Validation_Restrictions restrictions(policy.require_cert_revocation_info(),
+                                                          policy.minimum_signature_strength());
+
+         auto ocsp_timeout = std::chrono::milliseconds(1000);
+
+         Botan::Path_Validation_Result result =
+            Botan::x509_path_validate(cert_chain,
+                                      restrictions,
+                                      trusted_roots,
+                                      hostname,
+                                      usage,
+                                      std::chrono::system_clock::now(),
+                                      ocsp_timeout,
+                                      ocsp);
+
+         std::cout << "Certificate validation status: " << result.result_string() << "\n";
+         if(result.successful_validation())
+            {
+            auto status = result.all_statuses();
+
+            if(status.size() > 0 && status[0].count(Botan::Certificate_Status_Code::OCSP_RESPONSE_GOOD))
+               std::cout << "Valid OCSP response for this server\n";
+            }
          }
 
       bool tls_session_established(const Botan::TLS::Session& session) override
@@ -289,8 +328,7 @@ class TLS_Client final : public Command, public Botan::TLS::Callbacks
 
          while(length)
             {
-            ssize_t sent = ::send(m_sockfd, (const char*)buf + offset,
-                                  length, MSG_NOSIGNAL);
+            ssize_t sent = ::send(m_sockfd, buf + offset, length, MSG_NOSIGNAL);
 
             if(sent == -1)
                {
