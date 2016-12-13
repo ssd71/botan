@@ -11,7 +11,7 @@ docs:
     - $CXX --version
     - ./configure.py --module-policy=bsi --enable-modules=$EXTRA_MODULES --with-coverage --cc="$CC" --cc-bin="$CXX" --prefix=/tmp/botan-installation
     - doxygen build/botan.doxy
-    - sphinx-build -c ./src/build-data/sphinx -b latex ./doc/manual
+    - sphinx-build -c ./src/build-data/sphinx -b latex ./doc/manual build/docs/manual
     - cd build/docs/manual
     - pdflatex botan.tex
   artifacts:
