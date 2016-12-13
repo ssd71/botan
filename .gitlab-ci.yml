@@ -4,6 +4,26 @@ variables:
   SOFTHSM2_CONF_LINUX: "/home/gitlab-runner/softhsm2.conf"
   SOFTHSM2_LIB_LINUX:  "/home/gitlab-runner/SoftHSMv2-inst/lib/softhsm/libsofthsm2.so"
 
+docs:
+  script:
+    - export CC=gcc
+    - export CXX=g++
+    - $CXX --version
+    - ./configure.py --module-policy=bsi --enable-modules=$EXTRA_MODULES --with-coverage --cc="$CC" --cc-bin="$CXX" --prefix=/tmp/botan-installation
+    - doxygen build/botan.doxy
+    - sphinx-build -c ./src/build-data/sphinx -b latex ./doc/manual
+    - cd build/docs/manual
+    - pdflatex botan.tex
+  artifacts:
+    paths:
+      - build/docs/doxygen
+      - build/docs/manual
+  tags:
+    - ubuntu
+    - x64
+  except:
+    - tags
+
 coverage:
   script:
     - export CC=gcc
