@@ -288,10 +288,10 @@ def process_command_line(args):
                            help='enable static analysis checks')
 
     build_group.add_option('--with-coverage', action='store_true', default=False, dest='with_coverage',
-                           help='enable coverage checking and disable opts')
+                           help='add coverage info and disable opts')
 
     build_group.add_option('--with-coverage-info', action='store_true', default=False, dest='with_coverage_info',
-                           help='enable coverage checking')
+                           help='add coverage info')
 
     build_group.add_option('--enable-shared-library', dest='build_shared_lib',
                            action='store_true', default=True,
@@ -396,6 +396,9 @@ def process_command_line(args):
     build_group.add_option('--write-sources-to-file', action='store_true',
                            default=False, help='Generate a file which includes all sources that will be compiled. Useful for cppcheck checking.')
 
+    build_group.add_option('--unsafe-fuzzer-mode', action='store_true', default=False,
+                          help='disable essential checks for testing')
+
     mods_group = optparse.OptionGroup(parser, 'Module selection')
 
     mods_group.add_option('--module-policy', dest='module_policy',
@@ -415,9 +418,6 @@ def process_command_line(args):
                           help=optparse.SUPPRESS_HELP)
     mods_group.add_option('--minimized-build', action='store_true', dest='no_autoload',
                           help='minimize build')
-
-    mods_group.add_option('--unsafe-fuzzer-mode', action='store_true',
-                          help='disable checks for fuzz testing')
 
     # Should be derived from info.txt but this runs too early
     third_party  = ['boost', 'bzip2', 'lzma', 'openssl', 'sqlite3', 'zlib', 'tpm', 'pkcs11']
@@ -620,7 +620,7 @@ class ModuleInfo(object):
     def __init__(self, infofile):
 
         lex_me_harder(infofile, self,
-                      ['source', 'header:internal', 'header:public', 
+                      ['header:internal', 'header:public', 
                         'header:external', 'requires', 'os', 'arch', 
                         'cc', 'libs', 'frameworks', 'comment', 
                         'warning'],
@@ -629,27 +629,31 @@ class ModuleInfo(object):
                         'define': [],
                         'need_isa': ''})
 
-        def extract_files_matching(basedir, suffixes):
-            for (dirpath, dirnames, filenames) in os.walk(basedir):
-                if dirpath == basedir:
-                    for filename in filenames:
-                        if filename.startswith('.'):
-                            continue
+        all_source_files = []
+        all_header_files = []
 
-                        for suffix in suffixes:
-                            if filename.endswith(suffix):
-                                yield filename
+        for fspath in os.listdir(self.lives_in):
+            if fspath.endswith('.cpp'):
+                all_source_files.append(fspath)
+            elif fspath.endswith('.h'):
+                all_header_files.append(fspath)
+
+        self.source = all_source_files
 
         if self.need_isa == '':
             self.need_isa = []
         else:
             self.need_isa = self.need_isa.split(',')
 
-        if self.source == []:
-            self.source = list(extract_files_matching(self.lives_in, ['.cpp']))
-
+        # If not entry for the headers, all are assumed public
         if self.header_internal == [] and self.header_public == []:
-            self.header_public = list(extract_files_matching(self.lives_in, ['.h']))
+            self.header_public = list(all_header_files)
+        else:
+            pub_header = set(self.header_public)
+            int_header = set(self.header_internal)
+
+            if pub_header.isdisjoint(int_header) == False:
+                logging.error("Module %s header contains same header in public and internal sections" % (infofile))
 
         # Coerce to more useful types
         def convert_lib_list(l):
@@ -708,6 +712,17 @@ class ModuleInfo(object):
         intersect_check('public', self.header_public, 'internal', self.header_internal)
         intersect_check('public', self.header_public, 'external', self.header_external)
         intersect_check('external', self.header_external, 'internal', self.header_internal)
+
+    def cross_check(self, arch_info, os_info, cc_info):
+        for os in self.os:
+            if os not in os_info:
+                raise Exception('Module %s mentions unknown OS %s' % (self.infofile, os))
+        for cc in self.cc:
+            if cc not in cc_info:
+                raise Exception('Module %s mentions unknown compiler %s' % (self.infofile, cc))
+        for arch in self.arch:
+            if arch not in arch_info:
+                raise Exception('Module %s mentions unknown arch %s' % (self.infofile, arch))
 
     def sources(self):
         return self.source
@@ -2114,6 +2129,9 @@ def main(argv = None):
     info_os   = load_build_data('OS info', 'os', OsInfo)
     info_cc   = load_build_data('compiler info', 'cc', CompilerInfo)
 
+    for mod in modules.values():
+        mod.cross_check(info_arch, info_os, info_cc)
+
     module_policies = load_build_data('module policy', 'policy', ModulePolicyInfo)
 
     for policy in module_policies.values():
@@ -2235,6 +2253,7 @@ def main(argv = None):
     using_mods = [modules[m] for m in loaded_mods]
 
     build_config = BuildConfigurationInformation(options, using_mods)
+
     build_config.public_headers.append(os.path.join(build_config.build_dir, 'build.h'))
 
     template_vars = create_template_vars(build_config, options, using_mods, cc, arch, osinfo)
@@ -2345,10 +2364,14 @@ def main(argv = None):
             return 'undated'
         return 'dated %d' % (datestamp)
 
-    logging.info('Botan %s (%s %s) build setup is complete' % (
+    logging.info('Botan %s (VC %s) (%s %s) build setup is complete' % (
         build_config.version_string,
+        build_config.version_vc_rev,
         build_config.version_release_type,
         release_date(build_config.version_datestamp)))
+
+    if options.unsafe_fuzzer_mode:
+        logging.warning("The fuzzer mode flag is labeled unsafe for a reason, this version is for testing only")
 
 if __name__ == '__main__':
     try:

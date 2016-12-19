@@ -9,6 +9,7 @@
 #define BOTAN_X509_SELF_H__
 
 #include <botan/x509cert.h>
+#include <botan/x509_ext.h>
 #include <botan/pkcs10.h>
 #include <botan/asn1_time.h>
 
@@ -115,6 +116,11 @@ class BOTAN_DLL X509_Cert_Options
       std::vector<OID> ex_constraints;
 
       /**
+      * Additional X.509 extensions
+      */
+      Extensions extensions;
+
+      /**
       * Mark the certificate as a CA certificate and set the path limit.
       * @param limit the path limit to be set in the BasicConstraints extension.
       */
@@ -157,7 +163,7 @@ class BOTAN_DLL X509_Cert_Options
       * @param expire_time the expiration time (from the current clock in seconds)
       */
       X509_Cert_Options(const std::string& opts = "",
-                        u32bit expire_time = 365 * 24 * 60 * 60);
+                        uint32_t expire_time = 365 * 24 * 60 * 60);
    };
 
 namespace X509 {

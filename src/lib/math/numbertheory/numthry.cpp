@@ -358,6 +358,9 @@ word monty_inverse(word input)
       y1 = y;
       }
 
+   const word check = y2 * input;
+   BOTAN_ASSERT_EQUAL(check, 1, "monty_inverse result is inverse of input");
+
    // Now invert in addition space
    y2 = (MP_WORD_MAX - y2) + 1;
 
@@ -446,7 +449,7 @@ bool is_prime(const BigInt& n, RandomNumberGenerator& rng,
    // Fast path testing for small numbers (<= 65521)
    if(n <= PRIMES[PRIME_TABLE_SIZE-1])
       {
-      const u16bit num = static_cast<u16bit>(n.word_at(0));
+      const uint16_t num = static_cast<uint16_t>(n.word_at(0));
 
       return std::binary_search(PRIMES, PRIMES + PRIME_TABLE_SIZE, num);
       }

@@ -6,11 +6,15 @@
 
 #include "driver.h"
 #include <botan/numthry.h>
-#include <botan/system_rng.h>
 
 void fuzz(const uint8_t in[], size_t len)
    {
-   if(len % 2 != 0)
+   /*
+   * This allows two values (a,p) up to 768 bits in length, which is
+   * sufficient to test ressol (modular square root) for since it is
+   * mostly used for ECC.
+   */
+   if(len % 2 != 0 || len > 2 * (768 / 8))
       return;
 
    const BigInt a = BigInt::decode(in, len / 2);
@@ -32,12 +36,12 @@ void fuzz(const uint8_t in[], size_t len)
          BigInt a_redc = a % n;
          if(z != a_redc)
             {
-            if(is_prime(n, system_rng(), 64))
+            if(is_prime(n, fuzzer_rng(), 64))
                {
                std::cout << "A = " << a << "\n";
-               std::cout << "Ressol = " << a_sqrt << "\n";
                std::cout << "N = " << n << "\n";
-               std::cout << "Z = " << z << "\n";
+               std::cout << "Ressol = " << a_sqrt << "\n";
+               std::cout << "recomputed = " << z << "\n";
                abort();
                }
             }

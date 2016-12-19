@@ -1,6 +1,7 @@
 /*
 * PKCS #10
 * (C) 1999-2007 Jack Lloyd
+* (C) 2016 René Korthaus, Rohde & Schwarz Cybersecurity
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -10,6 +11,7 @@
 
 #include <botan/x509_obj.h>
 #include <botan/x509_dn.h>
+#include <botan/x509_ext.h>
 #include <botan/datastor.h>
 #include <botan/key_constraint.h>
 #include <botan/asn1_attribute.h>
@@ -34,7 +36,7 @@ class BOTAN_DLL PKCS10_Request final : public X509_Object
       * Get the raw DER encoded public key.
       * @return raw DER encoded public key
       */
-      std::vector<byte> raw_public_key() const;
+      std::vector<uint8_t> raw_public_key() const;
 
       /**
       * Get the subject DN.
@@ -72,13 +74,19 @@ class BOTAN_DLL PKCS10_Request final : public X509_Object
       * in the BasicConstraints extension.
       * @return path limit
       */
-      u32bit path_limit() const;
+      size_t path_limit() const;
 
       /**
       * Get the challenge password for this request
       * @return challenge password for this request
       */
       std::string challenge_password() const;
+
+      /**
+      * Get the X509v3 extensions.
+      * @return X509v3 extensions
+      */
+      Extensions extensions() const;
 
       /**
       * Create a PKCS#10 Request from a data source.
@@ -99,12 +107,13 @@ class BOTAN_DLL PKCS10_Request final : public X509_Object
       * Create a PKCS#10 Request from binary data.
       * @param vec a std::vector containing the DER value
       */
-      explicit PKCS10_Request(const std::vector<byte>& vec);
+      explicit PKCS10_Request(const std::vector<uint8_t>& vec);
    private:
       void force_decode() override;
       void handle_attribute(const Attribute&);
 
       Data_Store m_info;
+      Extensions m_extensions;
    };
 
 }

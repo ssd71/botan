@@ -20,17 +20,17 @@ class BOTAN_DLL DH_PublicKey : public virtual DL_Scheme_PublicKey
    public:
       std::string algo_name() const override { return "DH"; }
 
-      std::vector<byte> public_value() const;
+      std::vector<uint8_t> public_value() const;
 
       DL_Group::Format group_format() const override { return DL_Group::ANSI_X9_42; }
 
       /**
       * Create a public key.
       * @param alg_id the X.509 algorithm identifier
-      * @param key_bits X.509 subject public key info structure
+      * @param key_bits DER encoded public key bits
       */
       DH_PublicKey(const AlgorithmIdentifier& alg_id,
-                   const secure_vector<byte>& key_bits) :
+                   const std::vector<uint8_t>& key_bits) :
          DL_Scheme_PublicKey(alg_id, key_bits, DL_Group::ANSI_X9_42) {}
 
       /**
@@ -51,7 +51,7 @@ class BOTAN_DLL DH_PrivateKey : public DH_PublicKey,
                                 public virtual DL_Scheme_PrivateKey
    {
    public:
-      std::vector<byte> public_value() const override;
+      std::vector<uint8_t> public_value() const override;
 
       /**
       * Load a private key.
@@ -59,7 +59,7 @@ class BOTAN_DLL DH_PrivateKey : public DH_PublicKey,
       * @param key_bits PKCS #8 structure
       */
       DH_PrivateKey(const AlgorithmIdentifier& alg_id,
-                    const secure_vector<byte>& key_bits);
+                    const secure_vector<uint8_t>& key_bits);
 
       /**
       * Create a private key.

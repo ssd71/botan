@@ -6,7 +6,6 @@
 
 #include "driver.h"
 #include <botan/tls_client.h>
-#include <botan/system_rng.h>
 
 class Fuzzer_TLS_Client_Creds : public Credentials_Manager
    {
@@ -29,12 +28,10 @@ void fuzz(const uint8_t in[], size_t len)
    auto ignore_alerts = [](TLS::Alert, const byte[], size_t) {};
    auto ignore_hs = [](const TLS::Session&) { abort(); return true; };
 
-   Botan::System_RNG rng;
    TLS::Session_Manager_Noop session_manager;
    TLS::Policy policy;
    TLS::Protocol_Version client_offer = TLS::Protocol_Version::TLS_V12;
    TLS::Server_Information info("server.name", 443);
-   const std::vector<std::string> protocols_to_offer = { "fuzz/1.0", "http/1.1", "bunny/1.21.3" };
    Fuzzer_TLS_Client_Creds creds;
 
    TLS::Client client(dev_null,
@@ -44,25 +41,13 @@ void fuzz(const uint8_t in[], size_t len)
                       session_manager,
                       creds,
                       policy,
-                      rng,
+                      fuzzer_rng(),
                       info,
-                      client_offer,
-                      protocols_to_offer);
+                      client_offer);
 
    try
       {
-      while(len > 0)
-         {
-         const size_t write_len = in[0];
-         const size_t left = len - 1;
-
-         const size_t consumed = std::min(left, write_len);
-
-         client.received_data(in + 1, consumed);
-
-         in += consumed + 1;
-         len -= consumed + 1;
-         }
+      client.received_data(in, len);
       }
    catch(std::exception& e)
       {

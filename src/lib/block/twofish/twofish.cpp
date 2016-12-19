@@ -17,11 +17,11 @@ namespace Botan {
 /*
 * Twofish Encryption
 */
-void Twofish::encrypt_n(const byte in[], byte out[], size_t blocks) const
+void Twofish::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
    BOTAN_PARALLEL_FOR(size_t i = 0; i < blocks; ++i)
       {
-      u32bit A, B, C, D;
+      uint32_t A, B, C, D;
       load_le(in + BLOCK_SIZE*i, A, B, C, D);
 
       A ^= m_RK[0];
@@ -31,7 +31,7 @@ void Twofish::encrypt_n(const byte in[], byte out[], size_t blocks) const
 
       for(size_t j = 0; j != 16; j += 2)
          {
-         u32bit X, Y;
+         uint32_t X, Y;
 
          X = m_SB[    get_byte(3, A)] ^ m_SB[256+get_byte(2, A)] ^
              m_SB[512+get_byte(1, A)] ^ m_SB[768+get_byte(0, A)];
@@ -68,11 +68,11 @@ void Twofish::encrypt_n(const byte in[], byte out[], size_t blocks) const
 /*
 * Twofish Decryption
 */
-void Twofish::decrypt_n(const byte in[], byte out[], size_t blocks) const
+void Twofish::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
    BOTAN_PARALLEL_FOR(size_t i = 0; i < blocks; ++i)
       {
-      u32bit A, B, C, D;
+      uint32_t A, B, C, D;
       load_le(in + BLOCK_SIZE*i, A, B, C, D);
 
       A ^= m_RK[4];
@@ -82,7 +82,7 @@ void Twofish::decrypt_n(const byte in[], byte out[], size_t blocks) const
 
       for(size_t j = 0; j != 16; j += 2)
          {
-         u32bit X, Y;
+         uint32_t X, Y;
 
          X = m_SB[    get_byte(3, A)] ^ m_SB[256+get_byte(2, A)] ^
              m_SB[512+get_byte(1, A)] ^ m_SB[768+get_byte(0, A)];
@@ -119,15 +119,33 @@ void Twofish::decrypt_n(const byte in[], byte out[], size_t blocks) const
 /*
 * Twofish Key Schedule
 */
-void Twofish::key_schedule(const byte key[], size_t length)
+void Twofish::key_schedule(const uint8_t key[], size_t length)
    {
    m_SB.resize(1024);
    m_RK.resize(40);
 
-   secure_vector<byte> S(16);
+   secure_vector<uint8_t> S(16);
 
    for(size_t i = 0; i != length; ++i)
-      rs_mul(&S[4*(i/8)], key[i], i);
+      {
+      /*
+      * Do one column of the RS matrix multiplcation
+      */
+      if(key[i])
+         {
+         uint8_t X = POLY_TO_EXP[key[i] - 1];
+
+         uint8_t RS1 = RS[(4*i  ) % 32];
+         uint8_t RS2 = RS[(4*i+1) % 32];
+         uint8_t RS3 = RS[(4*i+2) % 32];
+         uint8_t RS4 = RS[(4*i+3) % 32];
+
+         S[4*(i/8)  ] ^= EXP_TO_POLY[(X + POLY_TO_EXP[RS1 - 1]) % 255];
+         S[4*(i/8)+1] ^= EXP_TO_POLY[(X + POLY_TO_EXP[RS2 - 1]) % 255];
+         S[4*(i/8)+2] ^= EXP_TO_POLY[(X + POLY_TO_EXP[RS3 - 1]) % 255];
+         S[4*(i/8)+3] ^= EXP_TO_POLY[(X + POLY_TO_EXP[RS4 - 1]) % 255];
+         }
+      }
 
    if(length == 16)
       {
@@ -141,11 +159,11 @@ void Twofish::key_schedule(const byte key[], size_t length)
 
       BOTAN_PARALLEL_FOR(size_t i = 0; i < 40; i += 2)
          {
-         u32bit X = MDS0[Q0[Q0[i  ]^key[ 8]]^key[ 0]] ^
+         uint32_t X = MDS0[Q0[Q0[i  ]^key[ 8]]^key[ 0]] ^
                     MDS1[Q0[Q1[i  ]^key[ 9]]^key[ 1]] ^
                     MDS2[Q1[Q0[i  ]^key[10]]^key[ 2]] ^
                     MDS3[Q1[Q1[i  ]^key[11]]^key[ 3]];
-         u32bit Y = MDS0[Q0[Q0[i+1]^key[12]]^key[ 4]] ^
+         uint32_t Y = MDS0[Q0[Q0[i+1]^key[12]]^key[ 4]] ^
                     MDS1[Q0[Q1[i+1]^key[13]]^key[ 5]] ^
                     MDS2[Q1[Q0[i+1]^key[14]]^key[ 6]] ^
                     MDS3[Q1[Q1[i+1]^key[15]]^key[ 7]];
@@ -168,11 +186,11 @@ void Twofish::key_schedule(const byte key[], size_t length)
 
       BOTAN_PARALLEL_FOR(size_t i = 0; i < 40; i += 2)
          {
-         u32bit X = MDS0[Q0[Q0[Q1[i  ]^key[16]]^key[ 8]]^key[ 0]] ^
+         uint32_t X = MDS0[Q0[Q0[Q1[i  ]^key[16]]^key[ 8]]^key[ 0]] ^
                     MDS1[Q0[Q1[Q1[i  ]^key[17]]^key[ 9]]^key[ 1]] ^
                     MDS2[Q1[Q0[Q0[i  ]^key[18]]^key[10]]^key[ 2]] ^
                     MDS3[Q1[Q1[Q0[i  ]^key[19]]^key[11]]^key[ 3]];
-         u32bit Y = MDS0[Q0[Q0[Q1[i+1]^key[20]]^key[12]]^key[ 4]] ^
+         uint32_t Y = MDS0[Q0[Q0[Q1[i+1]^key[20]]^key[12]]^key[ 4]] ^
                     MDS1[Q0[Q1[Q1[i+1]^key[21]]^key[13]]^key[ 5]] ^
                     MDS2[Q1[Q0[Q0[i+1]^key[22]]^key[14]]^key[ 6]] ^
                     MDS3[Q1[Q1[Q0[i+1]^key[23]]^key[15]]^key[ 7]];
@@ -195,11 +213,11 @@ void Twofish::key_schedule(const byte key[], size_t length)
 
       BOTAN_PARALLEL_FOR(size_t i = 0; i < 40; i += 2)
          {
-         u32bit X = MDS0[Q0[Q0[Q1[Q1[i  ]^key[24]]^key[16]]^key[ 8]]^key[ 0]] ^
+         uint32_t X = MDS0[Q0[Q0[Q1[Q1[i  ]^key[24]]^key[16]]^key[ 8]]^key[ 0]] ^
                     MDS1[Q0[Q1[Q1[Q0[i  ]^key[25]]^key[17]]^key[ 9]]^key[ 1]] ^
                     MDS2[Q1[Q0[Q0[Q0[i  ]^key[26]]^key[18]]^key[10]]^key[ 2]] ^
                     MDS3[Q1[Q1[Q0[Q1[i  ]^key[27]]^key[19]]^key[11]]^key[ 3]];
-         u32bit Y = MDS0[Q0[Q0[Q1[Q1[i+1]^key[28]]^key[20]]^key[12]]^key[ 4]] ^
+         uint32_t Y = MDS0[Q0[Q0[Q1[Q1[i+1]^key[28]]^key[20]]^key[12]]^key[ 4]] ^
                     MDS1[Q0[Q1[Q1[Q0[i+1]^key[29]]^key[21]]^key[13]]^key[ 5]] ^
                     MDS2[Q1[Q0[Q0[Q0[i+1]^key[30]]^key[22]]^key[14]]^key[ 6]] ^
                     MDS3[Q1[Q1[Q0[Q1[i+1]^key[31]]^key[23]]^key[15]]^key[ 7]];
@@ -209,27 +227,6 @@ void Twofish::key_schedule(const byte key[], size_t length)
          m_RK[i] = X;
          m_RK[i+1] = rotate_left(Y, 9);
          }
-      }
-   }
-
-/*
-* Do one column of the RS matrix multiplcation
-*/
-void Twofish::rs_mul(byte S[4], byte key, size_t offset)
-   {
-   if(key)
-      {
-      byte X = POLY_TO_EXP[key - 1];
-
-      byte RS1 = RS[(4*offset  ) % 32];
-      byte RS2 = RS[(4*offset+1) % 32];
-      byte RS3 = RS[(4*offset+2) % 32];
-      byte RS4 = RS[(4*offset+3) % 32];
-
-      S[0] ^= EXP_TO_POLY[(X + POLY_TO_EXP[RS1 - 1]) % 255];
-      S[1] ^= EXP_TO_POLY[(X + POLY_TO_EXP[RS2 - 1]) % 255];
-      S[2] ^= EXP_TO_POLY[(X + POLY_TO_EXP[RS3 - 1]) % 255];
-      S[3] ^= EXP_TO_POLY[(X + POLY_TO_EXP[RS4 - 1]) % 255];
       }
    }
 

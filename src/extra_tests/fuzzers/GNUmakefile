@@ -2,11 +2,14 @@
 FUZZERS=$(patsubst jigs/%.cpp,%,$(wildcard jigs/*.cpp))
 
 AFL_SAN_FLAGS=-fsanitize=address,undefined -fno-sanitize-recover=undefined
-CLANG_SAN_FLAGS=-fsanitize=address,undefined -fno-sanitize-recover=undefined -fsanitize-coverage=edge,indirect-calls,8bit-counters
+CLANG_SAN_FLAGS=-fsanitize=address,undefined -fno-sanitize-recover=undefined
 
+CLANG_COV_FLAGS=-fsanitize-coverage=edge,indirect-calls,8bit-counters
 SHARED_FLAGS=-O3 -g -std=c++11 -pthread
-LIBFUZZER_FLAGS=-DUSE_LLVM_FUZZER -Illvm-build/build/include $(SHARED_FLAGS) $(CLANG_SAN_FLAGS)
-AFL_FLAGS=-Iafl-build/build/include $(SHARED_FLAGS)
+CFG_FLAGS=--with-debug-info --unsafe-fuzzer-mode
+
+LIBFUZZER_FLAGS=-Illvm-build/build/include $(SHARED_FLAGS) $(CLANG_COV_FLAGS) $(CLANG_SAN_FLAGS)
+AFL_FLAGS=-Iafl-build/build/include $(SHARED_FLAGS) -DINCLUDE_AFL_MAIN
 
 LIBFUZZER_LIBS=llvm-build/libbotan-1.11.a libFuzzer.a
 AFL_LIBS=afl-build/libbotan-1.11.a
@@ -27,7 +30,7 @@ afl: dirs afl-build $(AFL_PROGS)
 llvm: dirs llvm-build $(LIBFUZZER_PROGS)
 
 bin/llvm_fuzz_%: jigs/%.cpp $(LIBFUZZER_LIBS)
-	$(CLANG_CXX) $(LIBFUZZER_FLAGS) -DUSE_LLVM_FUZZER $< $(LIBFUZZER_LIBS) -o $@
+	$(CLANG_CXX) $(LIBFUZZER_FLAGS) $< $(LIBFUZZER_LIBS) -o $@
 
 bin/afl_fuzz_%: jigs/%.cpp $(AFL_LIBS)
 	$(AFL_CXX) $(AFL_FLAGS) $< $(AFL_LIBS) -o $@
@@ -40,11 +43,11 @@ dirs:
 
 afl-build:
 	../../../configure.py $(CFG_FLAGS) --with-build-dir=afl-build --cc=$(AFL_CXX_TYPE) --cc-bin=$(AFL_CXX)
-	make -f afl-build/Makefile afl-build/libbotan-1.11.a -j8
+	make -j2 -f afl-build/Makefile afl-build/libbotan-1.11.a
 
 llvm-build:
-	../../../configure.py $(CFG_FLAGS) --with-build-dir=llvm-build --cc=clang --cc-bin=$(CLANG_CXX) --cc-abi-flags="$(CLANG_SAN_FLAGS)"
-	make -f llvm-build/Makefile llvm-build/libbotan-1.11.a -j8
+	../../../configure.py $(CFG_FLAGS) --with-build-dir=llvm-build --cc=clang --cc-bin=$(CLANG_CXX) --cc-abi-flags="$(CLANG_COV_FLAGS) $(CLANG_SAN_FLAGS)"
+	make -j2 -f llvm-build/Makefile llvm-build/libbotan-1.11.a
 
 # libFuzzer default is max_len 64 this sets 140 but allows override via args=
 run_llvm_%: bin/llvm_fuzz_%

@@ -152,12 +152,12 @@ class BigInt_Unit_Tests : public Test
          const BigInt n1(0xffff);
          const BigInt n2(1023);
 
-         Botan::secure_vector<byte> encoded_n1 = BigInt::encode_1363(n1, 256);
-         Botan::secure_vector<byte> encoded_n2 = BigInt::encode_1363(n2, 256);
-         Botan::secure_vector<byte> expected = encoded_n1;
+         Botan::secure_vector<uint8_t> encoded_n1 = BigInt::encode_1363(n1, 256);
+         Botan::secure_vector<uint8_t> encoded_n2 = BigInt::encode_1363(n2, 256);
+         Botan::secure_vector<uint8_t> expected = encoded_n1;
          expected += encoded_n2;
 
-         Botan::secure_vector<byte> encoded_n1_n2 = BigInt::encode_fixed_length_int_pair(n1, n2, 256);
+         Botan::secure_vector<uint8_t> encoded_n1_n2 = BigInt::encode_fixed_length_int_pair(n1, n2, 256);
          result.test_eq("encode_fixed_length_int_pair", encoded_n1_n2, expected);
 
          for (size_t i = 0; i < 256 - n1.bytes(); ++i)
@@ -177,7 +177,7 @@ BOTAN_REGISTER_TEST("bigint_unit", BigInt_Unit_Tests);
 class BigInt_Add_Test : public Text_Based_Test
    {
    public:
-      BigInt_Add_Test() : Text_Based_Test("bn/add.vec", {"In1","In2","Output"}) {}
+      BigInt_Add_Test() : Text_Based_Test("bn/add.vec", "In1,In2,Output") {}
 
       Test::Result run_one_test(const std::string&, const VarMap& vars) override
          {
@@ -211,7 +211,7 @@ BOTAN_REGISTER_TEST("bn_add", BigInt_Add_Test);
 class BigInt_Sub_Test : public Text_Based_Test
    {
    public:
-      BigInt_Sub_Test() : Text_Based_Test("bn/sub.vec", {"In1","In2","Output"}) {}
+      BigInt_Sub_Test() : Text_Based_Test("bn/sub.vec", "In1,In2,Output") {}
 
       Test::Result run_one_test(const std::string&, const VarMap& vars) override
          {
@@ -238,7 +238,7 @@ BOTAN_REGISTER_TEST("bn_sub", BigInt_Sub_Test);
 class BigInt_Mul_Test : public Text_Based_Test
    {
    public:
-      BigInt_Mul_Test() : Text_Based_Test("bn/mul.vec", {"In1","In2","Output"}) {}
+      BigInt_Mul_Test() : Text_Based_Test("bn/mul.vec", "In1,In2,Output") {}
 
       Test::Result run_one_test(const std::string&, const VarMap& vars) override
          {
@@ -268,7 +268,7 @@ BOTAN_REGISTER_TEST("bn_mul", BigInt_Mul_Test);
 class BigInt_Sqr_Test : public Text_Based_Test
    {
    public:
-      BigInt_Sqr_Test() : Text_Based_Test("bn/sqr.vec", {"Input","Output"}) {}
+      BigInt_Sqr_Test() : Text_Based_Test("bn/sqr.vec", "Input,Output") {}
 
       Test::Result run_one_test(const std::string&, const VarMap& vars) override
          {
@@ -289,7 +289,7 @@ BOTAN_REGISTER_TEST("bn_sqr", BigInt_Sqr_Test);
 class BigInt_Div_Test : public Text_Based_Test
    {
    public:
-      BigInt_Div_Test() : Text_Based_Test("bn/divide.vec", {"In1","In2","Output"}) {}
+      BigInt_Div_Test() : Text_Based_Test("bn/divide.vec", "In1,In2,Output") {}
 
       Test::Result run_one_test(const std::string&, const VarMap& vars) override
          {
@@ -314,7 +314,7 @@ BOTAN_REGISTER_TEST("bn_div", BigInt_Div_Test);
 class BigInt_Mod_Test : public Text_Based_Test
    {
    public:
-      BigInt_Mod_Test() : Text_Based_Test("bn/mod.vec", {"In1","In2","Output"}) {}
+      BigInt_Mod_Test() : Text_Based_Test("bn/mod.vec", "In1,In2,Output") {}
 
       Test::Result run_one_test(const std::string&, const VarMap& vars) override
          {
@@ -348,7 +348,7 @@ BOTAN_REGISTER_TEST("bn_mod", BigInt_Mod_Test);
 class BigInt_Lshift_Test : public Text_Based_Test
    {
    public:
-      BigInt_Lshift_Test() : Text_Based_Test("bn/lshift.vec", {"Value","Shift","Output"}) {}
+      BigInt_Lshift_Test() : Text_Based_Test("bn/lshift.vec", "Value,Shift,Output") {}
 
       Test::Result run_one_test(const std::string&, const VarMap& vars) override
          {
@@ -373,7 +373,7 @@ BOTAN_REGISTER_TEST("bn_lshift", BigInt_Lshift_Test);
 class BigInt_Rshift_Test : public Text_Based_Test
    {
    public:
-      BigInt_Rshift_Test() : Text_Based_Test("bn/rshift.vec", {"Value","Shift","Output"}) {}
+      BigInt_Rshift_Test() : Text_Based_Test("bn/rshift.vec", "Value,Shift,Output") {}
 
       Test::Result run_one_test(const std::string&, const VarMap& vars) override
          {
@@ -398,18 +398,43 @@ BOTAN_REGISTER_TEST("bn_rshift", BigInt_Rshift_Test);
 class BigInt_Powmod_Test : public Text_Based_Test
    {
    public:
-      BigInt_Powmod_Test() : Text_Based_Test("bn/powmod.vec", {"Base","Exponent","Modulus","Output"}) {}
+      BigInt_Powmod_Test() : Text_Based_Test("bn/powmod.vec", "Base,Exponent,Modulus,Output") {}
 
       Test::Result run_one_test(const std::string&, const VarMap& vars) override
          {
          Test::Result result("BigInt Powmod");
 
-         const BigInt value = get_req_bn(vars, "Base");
+         const BigInt base = get_req_bn(vars, "Base");
          const BigInt exponent = get_req_bn(vars, "Exponent");
          const BigInt modulus = get_req_bn(vars, "Modulus");
-         const BigInt output = get_req_bn(vars, "Output");
+         const BigInt expected = get_req_bn(vars, "Output");
 
-         result.test_eq("power_mod", Botan::power_mod(value, exponent, modulus), output);
+         result.test_eq("power_mod", Botan::power_mod(base, exponent, modulus), expected);
+
+         Botan::Power_Mod pow_mod1(modulus);
+
+         pow_mod1.set_base(base);
+         pow_mod1.set_exponent(exponent);
+         result.test_eq("pow_mod1", pow_mod1.execute(), expected);
+
+         Botan::Power_Mod pow_mod2(modulus);
+
+         // Reverses ordering which affects window size
+         pow_mod2.set_exponent(exponent);
+         pow_mod2.set_base(base);
+         result.test_eq("pow_mod2", pow_mod2.execute(), expected);
+         result.test_eq("pow_mod2 #2", pow_mod2.execute(), expected);
+
+         if(modulus.is_odd())
+            {
+            // TODO: test different hints
+            // also TODO: remove bogus hinting arguments :)
+            Botan::Power_Mod pow_mod3(modulus, Botan::Power_Mod::NO_HINTS, /*disable_montgomery=*/true);
+
+            pow_mod3.set_exponent(exponent);
+            pow_mod3.set_base(base);
+            result.test_eq("pow_mod_fixed_window", pow_mod3.execute(), expected);
+            }
 
          return result;
          }
@@ -420,7 +445,7 @@ BOTAN_REGISTER_TEST("bn_powmod", BigInt_Powmod_Test);
 class BigInt_IsPrime_Test : public Text_Based_Test
    {
    public:
-      BigInt_IsPrime_Test() : Text_Based_Test("bn/isprime.vec", {"Value","IsPrime"}) {}
+      BigInt_IsPrime_Test() : Text_Based_Test("bn/isprime.vec", "Value,IsPrime") {}
 
       Test::Result run_one_test(const std::string&, const VarMap& vars) override
          {
@@ -440,7 +465,7 @@ BOTAN_REGISTER_TEST("bn_isprime", BigInt_IsPrime_Test);
 class BigInt_Ressol_Test : public Text_Based_Test
    {
    public:
-      BigInt_Ressol_Test() : Text_Based_Test("bn/ressol.vec", {"Input","Modulus","Output"}) {}
+      BigInt_Ressol_Test() : Text_Based_Test("bn/ressol.vec", "Input,Modulus,Output") {}
 
       Test::Result run_one_test(const std::string&, const VarMap& vars) override
          {
@@ -469,7 +494,7 @@ BOTAN_REGISTER_TEST("bn_ressol", BigInt_Ressol_Test);
 class BigInt_InvMod_Test : public Text_Based_Test
    {
    public:
-      BigInt_InvMod_Test() : Text_Based_Test("bn/invmod.vec", {"Input","Modulus","Output"}) {}
+      BigInt_InvMod_Test() : Text_Based_Test("bn/invmod.vec", "Input,Modulus,Output") {}
 
       Test::Result run_one_test(const std::string&, const VarMap& vars) override
          {
@@ -511,11 +536,11 @@ BOTAN_REGISTER_TEST("bn_invmod", BigInt_InvMod_Test);
 class DSA_ParamGen_Test : public Text_Based_Test
    {
    public:
-      DSA_ParamGen_Test() : Text_Based_Test("bn/dsa_gen.vec", {"P","Q","Seed"}) {}
+      DSA_ParamGen_Test() : Text_Based_Test("bn/dsa_gen.vec", "P,Q,Seed") {}
 
       Test::Result run_one_test(const std::string& header, const VarMap& vars) override
          {
-         const std::vector<byte> seed = get_req_bin(vars, "Seed");
+         const std::vector<uint8_t> seed = get_req_bin(vars, "Seed");
          const Botan::BigInt P = get_req_bn(vars, "P");
          const Botan::BigInt Q = get_req_bn(vars, "Q");
 
