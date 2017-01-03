@@ -30,7 +30,9 @@ class BigInt_Unit_Tests : public Test
 
          results.push_back(test_bigint_sizes());
          results.push_back(test_random_integer());
+         results.push_back(test_random_prime());
          results.push_back(test_encode());
+         results.push_back(test_bigint_io());
 
          return results;
          }
@@ -80,28 +82,68 @@ class BigInt_Unit_Tests : public Test
          return result;
          }
 
+      Test::Result test_random_prime()
+         {
+         Test::Result result("BigInt prime generation");
+
+         result.test_throws("Invalid arg", []{ Botan::random_prime(Test::rng(), 0); });
+         result.test_throws("Invalid arg", []{ Botan::random_prime(Test::rng(), 1); });
+         result.test_throws("Invalid arg", []{ Botan::random_prime(Test::rng(), 2, 0); });
+         result.test_throws("Invalid arg", []{ Botan::random_prime(Test::rng(), 2, 1, 1, 3); });
+         result.test_throws("Invalid arg", []{ Botan::random_prime(Test::rng(), 2, 1, 0, 2); });
+
+         BigInt p = Botan::random_prime(Test::rng(), 2);
+         result.confirm("Only two 2-bit primes", p == 2 || p == 3);
+
+         p = Botan::random_prime(Test::rng(), 3);
+         result.confirm("Only two 3-bit primes", p == 5 || p == 7);
+
+         p = Botan::random_prime(Test::rng(), 4);
+         result.confirm("Only two 4-bit primes", p == 11 || p == 13);
+
+         for(size_t bits = 5; bits <= 32; ++bits)
+            {
+            p = Botan::random_prime(Test::rng(), bits);
+            result.test_eq("Expected bit size", p.bits(), bits);
+            result.test_eq("P is prime", Botan::is_prime(p, Test::rng()), true);
+            }
+
+         for(size_t bits = 5; bits <= 32; ++bits)
+            {
+            const BigInt last_p = p;
+            p = Botan::random_prime(Test::rng(), bits, last_p);
+
+            result.test_eq("Relatively prime", Botan::gcd(last_p, p), 1);
+            result.test_eq("Expected bit size", p.bits(), bits);
+            result.test_eq("P is prime", Botan::is_prime(p, Test::rng()), true);
+            }
+
+         const size_t safe_prime_bits = 65;
+         const BigInt safe_prime = Botan::random_safe_prime(Test::rng(), safe_prime_bits);
+         result.test_eq("Safe prime size", safe_prime.bits(), safe_prime_bits);
+         result.confirm("P is prime", Botan::is_prime(safe_prime, Test::rng()));
+         result.confirm("(P-1)/2 is prime", Botan::is_prime((safe_prime-1)/2, Test::rng()));
+
+         return result;
+         }
+
       Test::Result test_random_integer()
          {
          Test::Result result("BigInt::random_integer");
 
          result.start_timer();
 
-         const size_t ITERATIONS = 5000;
+         // A value of 500 caused a non-negligible amount of test failures
+         const size_t ITERATIONS_PER_POSSIBLE_VALUE = 750;
 
          std::vector<size_t> min_ranges{ 0 };
          std::vector<size_t> max_ranges{ 10 };
 
-         // This gets slow quickly:
-         if(Test::soak_level() > 10)
+         if(Test::run_long_tests())
             {
-            min_ranges.push_back(10);
-            max_ranges.push_back(100);
-
-            if(Test::soak_level() > 50)
-               {
-               min_ranges.push_back(79);
-               max_ranges.push_back(293);
-               }
+            // This gets slow quickly:
+            min_ranges.push_back(7);
+            max_ranges.push_back(113);
             }
 
          for(size_t range_min : min_ranges)
@@ -113,7 +155,7 @@ class BigInt_Unit_Tests : public Test
 
                std::vector<size_t> counts(range_max - range_min);
 
-               for(size_t i = 0; i != counts.size() * ITERATIONS; ++i)
+               for(size_t i = 0; i != counts.size() * ITERATIONS_PER_POSSIBLE_VALUE; ++i)
                   {
                   uint32_t r = BigInt::random_integer(Test::rng(), range_min, range_max).to_u32bit();
                   result.test_gte("random_integer", r, range_min);
@@ -121,20 +163,18 @@ class BigInt_Unit_Tests : public Test
                   counts[r - range_min] += 1;
                   }
 
-               for(size_t i = 0; i != counts.size(); ++i)
+               for(const auto count : counts)
                   {
-                  double ratio = static_cast<double>(counts[i]) / ITERATIONS;
-                  double dev = std::min(ratio, std::fabs(1.0 - ratio));
+                  double ratio = static_cast<double>(count) / ITERATIONS_PER_POSSIBLE_VALUE;
 
-                  if(dev < .15)
+                  if(ratio >= 0.85 && ratio <= 1.15) // +/-15 %
                      {
                      result.test_success("distribution within expected range");
                      }
                   else
                      {
-                     result.test_failure("distribution " + std::to_string(dev) +
-                                         " outside expected range with count" +
-                                         std::to_string(counts[i]));
+                     result.test_failure("distribution ratio outside expected range (+/-15 %): " +
+                                         std::to_string(ratio));
                      }
                   }
                }
@@ -167,6 +207,44 @@ class BigInt_Unit_Tests : public Test
                   result.test_failure("encode_1363", "no zero byte");
                   }
             }
+
+         return result;
+         }
+
+      Test::Result test_bigint_io()
+         {
+         Test::Result result("BigInt IO operators");
+
+         const std::map<std::string, Botan::BigInt> str_to_val = {
+            { "-13", -Botan::BigInt(13) },
+            { "0", Botan::BigInt(0) },
+            { "0x13", Botan::BigInt(0x13) },
+            { "1", Botan::BigInt(1) },
+            { "4294967297", Botan::BigInt(2147483648)*2 + 1 }
+         };
+
+         for(auto vec : str_to_val)
+            {
+            Botan::BigInt n;
+            std::istringstream iss;
+
+            iss.str(vec.first);
+            iss >> n;
+            result.test_eq("input '" + vec.first + "'", n, vec.second);
+            }
+
+         BigInt n = 33;
+
+         std::ostringstream oss;
+         oss << n;
+         result.test_eq("output 33 dec", oss.str(), "33");
+
+         oss.str("");
+         oss << std::hex << n;
+         result.test_eq("output 33 hex", oss.str(), "21");
+
+         result.test_throws("octal output not supported",
+                            [&]{ oss << std::oct << n; });
 
          return result;
          }
@@ -445,17 +523,18 @@ BOTAN_REGISTER_TEST("bn_powmod", BigInt_Powmod_Test);
 class BigInt_IsPrime_Test : public Text_Based_Test
    {
    public:
-      BigInt_IsPrime_Test() : Text_Based_Test("bn/isprime.vec", "Value,IsPrime") {}
+      BigInt_IsPrime_Test() : Text_Based_Test("bn/isprime.vec", "X") {}
 
-      Test::Result run_one_test(const std::string&, const VarMap& vars) override
+      Test::Result run_one_test(const std::string& header, const VarMap& vars) override
          {
-         Test::Result result("BigInt IsPrime");
+         if(header != "Prime" && header != "NonPrime")
+            throw Test_Error("Bad header for prime test " + header);
 
-         const BigInt value = get_req_bn(vars, "Value");
-         const bool v_is_prime = get_req_sz(vars, "IsPrime") > 0;
+         const BigInt value = get_req_bn(vars, "X");
+         const bool is_prime = (header == "Prime");
 
-         result.test_eq("is_prime", Botan::is_prime(value, Test::rng()), v_is_prime);
-
+         Test::Result result("BigInt Test " + header);
+         result.test_eq("is_prime", Botan::is_prime(value, Test::rng()), is_prime);
          return result;
          }
    };
@@ -536,13 +615,15 @@ BOTAN_REGISTER_TEST("bn_invmod", BigInt_InvMod_Test);
 class DSA_ParamGen_Test : public Text_Based_Test
    {
    public:
-      DSA_ParamGen_Test() : Text_Based_Test("bn/dsa_gen.vec", "P,Q,Seed") {}
+      DSA_ParamGen_Test() : Text_Based_Test("bn/dsa_gen.vec", "P,Q,Counter,Seed") {}
 
       Test::Result run_one_test(const std::string& header, const VarMap& vars) override
          {
          const std::vector<uint8_t> seed = get_req_bin(vars, "Seed");
-         const Botan::BigInt P = get_req_bn(vars, "P");
-         const Botan::BigInt Q = get_req_bn(vars, "Q");
+         const size_t offset = get_req_sz(vars, "Counter");
+
+         const Botan::BigInt exp_P = get_req_bn(vars, "P");
+         const Botan::BigInt exp_Q = get_req_bn(vars, "Q");
 
          const std::vector<std::string> header_parts = Botan::split_on(header, ',');
 
@@ -555,15 +636,15 @@ class DSA_ParamGen_Test : public Text_Based_Test
          Test::Result result("DSA Parameter Generation");
 
          // These tests are very slow so skip in normal runs
-         if(Test::soak_level() <= 5 && p_bits > 1024)
+         if(p_bits > 1024 && Test::run_long_tests() == false)
             return result;
 
          try {
             Botan::BigInt gen_P, gen_Q;
-            if(Botan::generate_dsa_primes(Test::rng(), gen_P, gen_Q, p_bits, q_bits, seed))
+            if(Botan::generate_dsa_primes(Test::rng(), gen_P, gen_Q, p_bits, q_bits, seed, offset))
                {
-               result.test_eq("P", gen_P, P);
-               result.test_eq("Q", gen_Q, Q);
+               result.test_eq("P", gen_P, exp_P);
+               result.test_eq("Q", gen_Q, exp_Q);
                }
             else
                {

@@ -54,7 +54,7 @@ elif [ "${BUILD_MODE:0:5}" != "cross" ]; then
 
     if [ "$BUILD_MODE" = "coverage" ]; then
         CFG_FLAGS+=(--with-tpm)
-        TEST_FLAGS=(--run-online-tests --pkcs11-lib=/tmp/softhsm/lib/softhsm/libsofthsm2.so)
+        TEST_FLAGS=(--run-long-tests --run-online-tests --pkcs11-lib=/tmp/softhsm/lib/softhsm/libsofthsm2.so)
     fi
 
     # Avoid OpenSSL when using dynamic checkers, or on OS X where it sporadically
@@ -178,7 +178,7 @@ else
 fi
 
 # Run Python tests (need shared libs)
-if [ "$BUILD_MODE" = "shared" ]
+if [ "$BUILD_MODE" = "shared" ] || [ "$BUILD_MODE" = "coverage" ];
 then
     # TODO: find all things in PATH that begin with python- and execute them :)
     for py in python2 python3

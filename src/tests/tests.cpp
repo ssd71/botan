@@ -232,7 +232,7 @@ bool Test::Result::test_eq(const std::string& what, OctetString produced, OctetS
       }
    else
       {
-      out << " produced unexpected result " << produced.as_string() << " expected " << expected.as_string();
+      out << " produced unexpected result '" << produced.as_string() << "' expected '" << expected.as_string() << "'";
       return test_failure(out.str());
       }
    }
@@ -244,6 +244,18 @@ bool Test::Result::test_lt(const std::string& what, size_t produced, size_t expe
       std::ostringstream err;
       err << m_who << " " << what;
       err << " unexpected result " << produced << " >= " << expected;
+      return test_failure(err.str());
+      }
+
+   return test_success();
+   }
+
+bool Test::Result::test_lte(const std::string& what, size_t produced, size_t expected)
+   {
+   if(produced > expected)
+      {
+      std::ostringstream err;
+      err << m_who << " " << what << " unexpected result " << produced << " > " << expected;
       return test_failure(err.str());
       }
 
@@ -337,9 +349,8 @@ bool Test::Result::test_rc(const std::string& func, int expected, int rc)
    return test_success();
    }
 
-namespace {
-
-std::string format_time(uint64_t ns)
+//static
+std::string Test::format_time(uint64_t ns)
    {
    std::ostringstream o;
 
@@ -354,8 +365,6 @@ std::string format_time(uint64_t ns)
 
    return o.str();
    }
-
-}
 
 std::string Test::Result::result_string(bool verbose) const
    {
@@ -475,31 +484,25 @@ std::vector<Test::Result> Test::run_test(const std::string& test_name, bool fail
 // static member variables of Test
 Botan::RandomNumberGenerator* Test::m_test_rng = nullptr;
 std::string Test::m_data_dir;
-size_t Test::m_soak_level = 0;
 bool Test::m_log_success = false;
 bool Test::m_run_online_tests = false;
+bool Test::m_run_long_tests = false;
 std::string Test::m_pkcs11_lib;
 
 //static
-void Test::setup_tests(size_t soak,
-                       bool log_success,
+void Test::setup_tests(bool log_success,
                        bool run_online,
+                       bool run_long,
                        const std::string& data_dir,
                        const std::string& pkcs11_lib,
                        Botan::RandomNumberGenerator* rng)
    {
    m_data_dir = data_dir;
-   m_soak_level = soak;
    m_log_success = log_success;
    m_run_online_tests = run_online;
+   m_run_long_tests = run_long;
    m_test_rng = rng;
    m_pkcs11_lib = pkcs11_lib;
-   }
-
-//static
-size_t Test::soak_level()
-   {
-   return m_soak_level;
    }
 
 //static
@@ -524,6 +527,12 @@ bool Test::log_success()
 bool Test::run_online_tests()
    {
    return m_run_online_tests;
+   }
+
+//static
+bool Test::run_long_tests()
+   {
+   return m_run_long_tests;
    }
 
 //static
@@ -663,6 +672,27 @@ Botan::BigInt Text_Based_Test::get_req_bn(const VarMap& vars,
       throw Test_Error("Test invalid bigint input '" + i->second + "' for key " + key);
       }
    }
+
+Botan::BigInt Text_Based_Test::get_opt_bn(const VarMap& vars,
+                                        const std::string& key,
+                                        const Botan::BigInt& def_value) const
+
+   {
+   auto i = vars.find(key);
+   if(i == vars.end())
+      {
+      return def_value;
+      }
+
+   try
+      {
+      return Botan::BigInt(i->second);
+      }
+   catch(std::exception&)
+      {
+      throw Test_Error("Test invalid bigint input '" + i->second + "' for key " + key);
+      }
+   }
 #endif
 
 std::string Text_Based_Test::get_next_line()
@@ -787,6 +817,12 @@ parse_cpuid_bits(const std::vector<std::string>& tok)
 
 }
 
+bool Text_Based_Test::skip_this_test(const std::string& /*header*/,
+                                     const VarMap& /*vars*/)
+   {
+   return false;
+   }
+
 std::vector<Test::Result> Text_Based_Test::run()
    {
    std::vector<Test::Result> results;
@@ -816,7 +852,9 @@ std::vector<Test::Result> Text_Based_Test::run()
          continue;
          }
       else if(line[0] == '#')
+         {
          throw Test_Error("Unknown test pragma '" + line + "' in " + m_cur_src_name);
+         }
 
       if(line[0] == '[' && line[line.size()-1] == ']')
          {
@@ -850,6 +888,11 @@ std::vector<Test::Result> Text_Based_Test::run()
          {
          try
             {
+            if(skip_this_test(header, vars))
+               {
+               continue;
+               }
+
             ++test_cnt;
 
             uint64_t start = Test::timestamp();

@@ -33,10 +33,12 @@ void check_invalid_signatures(Test::Result& result,
                               const std::vector<uint8_t>& message,
                               const std::vector<uint8_t>& signature)
    {
+   const size_t tests_to_run = (Test::run_long_tests() ? 20 : 5);
+
    const std::vector<uint8_t> zero_sig(signature.size());
    result.test_eq("all zero signature invalid", verifier.verify_message(message, zero_sig), false);
 
-   for(size_t i = 0; i < Test::soak_level(); ++i)
+   for(size_t i = 0; i < tests_to_run; ++i)
       {
       const std::vector<uint8_t> bad_sig = Test::mutate_vec(signature);
 
@@ -53,9 +55,11 @@ void check_invalid_ciphertexts(Test::Result& result,
                                const std::vector<uint8_t>& plaintext,
                                const std::vector<uint8_t>& ciphertext)
    {
+   const size_t tests_to_run = (Test::run_long_tests() ? 20 : 5);
+
    size_t ciphertext_accepted = 0, ciphertext_rejected = 0;
 
-   for(size_t i = 0; i < Test::soak_level(); ++i)
+   for(size_t i = 0; i < tests_to_run; ++i)
       {
       const std::vector<uint8_t> bad_ctext = Test::mutate_vec(ciphertext);
 
@@ -186,6 +190,35 @@ PK_Signature_Verification_Test::run_one_test(const std::string&, const VarMap& v
          verifier.reset(new Botan::PK_Verifier(*pubkey, padding, Botan::IEEE_1363, verify_provider));
          result.test_eq("correct signature valid", verifier->verify_message(message, signature), true);
          check_invalid_signatures(result, *verifier, message, signature);
+         }
+      catch(Botan::Lookup_Error&)
+         {
+         result.test_note("Skipping verifying with " + verify_provider);
+         }
+      }
+
+   return result;
+   }
+
+Test::Result
+PK_Signature_NonVerification_Test::run_one_test(const std::string&, const VarMap& vars)
+   {
+   const std::string padding = get_opt_str(vars, "Padding", default_padding(vars));
+   const std::vector<uint8_t> message   = get_req_bin(vars, "Msg");
+   std::unique_ptr<Botan::Public_Key> pubkey = load_public_key(vars);
+
+   const std::vector<uint8_t> invalid_signature = get_req_bin(vars, "InvalidSignature");
+
+   Test::Result result(algo_name() + "/" + padding + " verify invalid signature");
+
+   for(auto&& verify_provider : possible_pk_providers())
+      {
+      std::unique_ptr<Botan::PK_Verifier> verifier;
+
+      try
+         {
+         verifier.reset(new Botan::PK_Verifier(*pubkey, padding, Botan::IEEE_1363, verify_provider));
+         result.test_eq("incorrect signature rejected", verifier->verify_message(message, invalid_signature), false);
          }
       catch(Botan::Lookup_Error&)
          {

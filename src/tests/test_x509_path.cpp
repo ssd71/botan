@@ -65,7 +65,8 @@ class X509test_Path_Validation_Tests : public Test
          std::map<std::string, std::string> expected =
             read_results(Test::data_file("x509test/expected.txt"));
 
-         const Botan::Path_Validation_Restrictions default_restrictions;
+         // Current tests use SHA-1
+         const Botan::Path_Validation_Restrictions restrictions(false, 80);
 
          Botan::X509_Certificate root(Test::data_file("x509test/root.pem"));
          Botan::Certificate_Store_In_Memory trusted;
@@ -76,6 +77,7 @@ class X509test_Path_Validation_Tests : public Test
          for(auto i = expected.begin(); i != expected.end(); ++i)
             {
             Test::Result result("X509test path validation");
+            result.start_timer();
             const std::string filename = i->first;
             const std::string expected_result = i->second;
 
@@ -86,7 +88,7 @@ class X509test_Path_Validation_Tests : public Test
                throw Test_Error("Failed to read certs from " + filename);
 
             Botan::Path_Validation_Result path_result = Botan::x509_path_validate(
-               certs, default_restrictions, trusted,
+               certs, restrictions, trusted,
                "www.tls.test", Botan::Usage_Type::TLS_SERVER_AUTH,
                validation_time);
 
@@ -94,6 +96,7 @@ class X509test_Path_Validation_Tests : public Test
                path_result = Botan::Path_Validation_Result(Botan::Certificate_Status_Code::CANNOT_ESTABLISH_TRUST);
 
             result.test_eq("test " + filename, path_result.result_string(), expected_result);
+            result.end_timer();
             results.push_back(result);
             }
 
@@ -160,6 +163,9 @@ std::vector<Test::Result> NIST_Path_Validation_Tests::run()
    std::map<std::string, std::string> expected =
       read_results(Test::data_file("nist_x509/expected.txt"));
 
+   const Botan::X509_Certificate root_cert(nist_test_dir + "/root.crt");
+   const Botan::X509_CRL root_crl(nist_test_dir + "/root.crl");
+
    for(auto i = expected.begin(); i != expected.end(); ++i)
       {
       const std::string test_name = i->first;
@@ -168,6 +174,7 @@ std::vector<Test::Result> NIST_Path_Validation_Tests::run()
       const std::string test_dir = nist_test_dir + "/" + test_name;
 
       Test::Result result("NIST path validation");
+      result.start_timer();
 
       const std::vector<std::string> all_files = Botan::get_files_recursive(test_dir);
 
@@ -179,6 +186,9 @@ std::vector<Test::Result> NIST_Path_Validation_Tests::run()
          }
 
       Botan::Certificate_Store_In_Memory store;
+
+      store.add_certificate(root_cert);
+      store.add_crl(root_crl);
 
       for(auto&& file : all_files)
          {
@@ -196,7 +206,8 @@ std::vector<Test::Result> NIST_Path_Validation_Tests::run()
 
       Botan::X509_Certificate end_user(test_dir + "/end.crt");
 
-      Botan::Path_Validation_Restrictions restrictions(true);
+      // 1024 bit root cert
+      Botan::Path_Validation_Restrictions restrictions(true, 80);
 
       Botan::Path_Validation_Result validation_result =
          Botan::x509_path_validate(end_user,
@@ -207,6 +218,7 @@ std::vector<Test::Result> NIST_Path_Validation_Tests::run()
                      validation_result.result_string(),
                      expected_result);
 
+      result.end_timer();
       results.push_back(result);
       }
 

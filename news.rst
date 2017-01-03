@@ -6,25 +6,40 @@ Version 1.11.35, Not Yet Released
 
 * Fix a longstanding bug in modular exponentiation which caused most
   exponentiations modulo an even number to have an incorrect result; such moduli
-  occur only rarely in cryptographic contexts. GH #754
+  occur only rarely in cryptographic contexts. (GH #754)
 
 * Fix a bug in BigInt multiply operation, introduced in 1.11.30, which could
   cause incorrect results. Found by OSS-Fuzz fuzzing the ressol function, where
   the bug manifested as an incorrect modular exponentiation. OSS-Fuzz bug #287
 
-* Changes all Public_Key derived class ctors to take a
-  std::vector instead of a secure_vector for the DER encoded
-  public key bits. (GH #768)
+* Fix a bug that meant the "ietf/modp/6144" and "ietf/modp/8192" discrete log
+  groups used an incorrect value for the generator, specifically the value
+  (p-1)/2 was used instead of the correct value of 2.
 
-* Allow use of custom extensions when creating X.509 certificates
-  (GH #744)
+* The DL_Group enum value X942_DH_PARAMETERS has been renamed
+  ANSI_X9_42_DH_PARAMETERS to avoid a conflict with Windows headers (GH #482)
 
-* Add ISO 9796-2 signature padding schemes DS2 and DS3. These schemes provide message recovery
-  (part or all of the plaintext message can be recovered from the signature alone) and are
-  used by some industry protocols. (GH #759)
+* Changes all Public_Key derived class ctors to take a std::vector instead of a
+  secure_vector for the DER encoded public key bits. (GH #768)
 
-* Rewrite all the code that handles parsing CBC padding bytes to run
-  without conditional jumps or loads. (GH #765 #728)
+* Allow use of custom extensions when creating X.509 certificates (GH #744)
+
+* The default TLS policy now requires 2048 or larger DH groups by default.
+
+* Add BSI_TR_02102_2 TLS::Policy subclass representing BSI TR-02102-2 recomendations.
+
+* The default Path_Validation_Restrictions constructor has changed to
+  require at least 110 bit signature strength. This means 1024 bit RSA
+  certificates and also SHA-1 certificates are rejected by default.
+  Both settings were already the default for certificate validation in
+  TLS handshake, but this changes it for applications also.
+
+* Add ISO 9796-2 signature padding schemes DS2 and DS3. These schemes provide
+  message recovery (part or all of the plaintext message can be recovered from
+  the signature alone) and are used by some industry protocols. (GH #759)
+
+* Rewrite all the code that handles parsing CBC padding bytes to run without
+  conditional jumps or loads. (GH #765 #728)
 
 * Fix deref of invalid memory location in TLS client when the server chooses a
   ciphersuite value larger than the largest TLS ciphersuite ID compiled into the
@@ -40,6 +55,12 @@ Version 1.11.35, Not Yet Released
   Private_Key::private_key_info which does exactly that. (GH #685 #757)
 
 * The deprecated ECB Cipher_Mode class has been removed (GH #756)
+
+* The class SRP6_Authenticator_File (in srp6_files.h) was meant to parse GnuTLS
+  SRP files. But it was completely untested, and it turns out due to several
+  problems it was completely unable to parse any SRP file correctly. It has
+  been removed, with a future replacement planned that can handle both
+  flat files (in the actual SRP format) or using a SQL database.
 
 * Fix tests errors when write access to /dev/urandom is prohibited (GH #748)
 
