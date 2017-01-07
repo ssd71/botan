@@ -212,7 +212,7 @@ class BuildConfigurationInformation(object):
             return (self.test_sources, self.testobj_dir)
 
     def pkg_config_file(self):
-        return 'botan-%d.%d.pc' % (self.version_major, self.version_minor)
+        return 'botan-%d.pc' % (self.version_major)
 
 
 """
@@ -1097,6 +1097,7 @@ class OsInfo(object):
                       { 'os_type': None,
                         'program_suffix': '',
                         'obj_suffix': 'o',
+                        'soname_suffix': '',
                         'soname_pattern_patch': '',
                         'soname_pattern_abi': '',
                         'soname_pattern_base': '',
@@ -1112,6 +1113,22 @@ class OsInfo(object):
                         'install_cmd_data': 'install -m 644',
                         'install_cmd_exec': 'install -m 755'
                         })
+
+        if self.soname_pattern_base != '':
+            if self.soname_pattern_patch == '' and self.soname_pattern_abi == '':
+                self.soname_pattern_patch = self.soname_pattern_base
+                self.soname_pattern_patch_abi = self.soname_pattern_base
+
+            elif self.soname_pattern_abi != '' and self.soname_pattern_abi != '':
+                pass # all 3 values set, nothing needs to happen here
+            else:
+                # base set, only one of patch/abi set
+                raise Exception("Invalid soname_patterns in %s" % (self.infofile))
+
+        if self.soname_pattern_base == '' and self.soname_suffix != '':
+            self.soname_pattern_base  = "libbotan-{version_major}.%s" % (self.soname_suffix)
+            self.soname_pattern_abi   = self.soname_pattern_base + ".{abi_rev}"
+            self.soname_pattern_patch = self.soname_pattern_abi + ".{version_minor}.{version_patch}"
 
         self.ar_needs_ranlib = bool(self.ar_needs_ranlib)
 
@@ -1166,32 +1183,49 @@ def canon_processor(archinfo, proc):
                     proc, match, submodel))
                 return (ainfo.basename, submodel)
 
-    logging.debug('Known CPU names: ' + ' '.join(
-        sorted(flatten([[ainfo.basename] + \
-                        ainfo.aliases + \
-                        [x for (x,_) in ainfo.all_submodels()]
-                        for ainfo in archinfo.values()]))))
+def system_cpu_info():
 
-    raise Exception('Unknown or unidentifiable processor "%s"' % (proc))
+    cpu_info = []
+
+    if platform.machine() != '':
+        cpu_info.append(platform.machine())
+
+    if platform.processor() != '':
+        cpu_info.append(platform.processor())
+
+    try:
+        with open('/proc/cpuinfo') as f:
+            for line in f.readlines():
+                if line.find(':') != -1:
+                    (key,val) = [s.strip() for s in line.split(':')]
+
+                    # Different Linux arch use different names for this field in cpuinfo
+                    if key in ["model name", "cpu model", "Processor"]:
+                        val = ' '.join(val.split())
+                        logging.debug('Found CPU model "%s" in /proc/cpuinfo' % (val))
+                        cpu_info.append(val)
+                        break
+
+    except IOError:
+        pass
+
+    return cpu_info
 
 def guess_processor(archinfo):
-    base_proc = platform.machine()
+    cpu_info = system_cpu_info()
 
-    if base_proc == '':
-        raise Exception('Could not determine target CPU; set with --cpu')
+    for input in cpu_info:
 
-    full_proc = fixup_proc_name(platform.processor()) or base_proc
+        if input != '':
+            try:
+                match = canon_processor(archinfo, input)
+                if match != None:
+                    logging.debug("Matched '%s' to processor '%s'" % (input, match))
+                    return match
+            except Exception as e:
+                logging.debug("Failed to deduce CPU from '%s'" % (input))
 
-    for ainfo in archinfo.values():
-        if ainfo.basename == base_proc or base_proc in ainfo.aliases:
-            for (match,submodel) in ainfo.all_submodels():
-                if re.search(match, full_proc) != None:
-                    return (ainfo.basename, submodel)
-
-            return canon_processor(archinfo, ainfo.basename)
-
-    # No matches, so just use the base proc type
-    return canon_processor(archinfo, base_proc)
+    raise Exception('Could not determine target CPU; set with --cpu')
 
 """
 Read a whole file into memory as a string
@@ -1614,9 +1648,9 @@ def create_template_vars(build_config, options, modules, cc, arch, osinfo):
         vars['botan_pkgconfig'] = prefix_with_build_dir(os.path.join(build_config.build_dir,
                                                                      build_config.pkg_config_file()))
 
-        # 'botan' or 'botan-1.11'. Used in Makefile and install script
+        # 'botan' or 'botan-2'. Used in Makefile and install script
         # This can be made consistent over all platforms in the future    
-        vars['libname'] = 'botan-%d.%d' % (build_config.version_major, build_config.version_minor)
+        vars['libname'] = 'botan-%d' % (build_config.version_major)
     else:
         if options.with_debug_info:
             vars['libname'] = 'botand'
@@ -1763,7 +1797,7 @@ def choose_modules_to_use(modules, module_policy, archinfo, ccinfo, options):
                     cannot_use_because(modname, 'dependency failure')
 
     for not_a_dep in maybe_dep:
-        cannot_use_because(not_a_dep, 'only used if needed or requested')
+        cannot_use_because(not_a_dep, 'not requested')
 
     for reason in sorted(not_using_because.keys()):
         disabled_mods = sorted(set([mod for mod in not_using_because[reason]]))
@@ -2111,7 +2145,7 @@ def main(argv = None):
         if len(info) == 0:
             logging.warning('Failed to load any %s files' % (descr))
         else:
-            logging.debug('Loaded %d %s files' % (len(info), descr))
+            logging.debug('Loaded %d %s files (%s)' % (len(info), descr, ' '.join(sorted(map(str, info)))))
 
         return info
 
@@ -2126,6 +2160,12 @@ def main(argv = None):
 
     for policy in module_policies.values():
         policy.cross_check(modules)
+
+    logging.debug('Known CPU names: ' + ' '.join(
+        sorted(flatten([[ainfo.basename] + \
+                        ainfo.aliases + \
+                        [x for (x,_) in ainfo.all_submodels()]
+                        for ainfo in info_arch.values()]))))
 
     if options.list_modules:
         for k in sorted(modules.keys()):
@@ -2199,9 +2239,15 @@ def main(argv = None):
             options.arch, options.cpu))
     else:
         cpu_from_user = options.cpu
-        (options.arch, options.cpu) = canon_processor(info_arch, options.cpu)
-        logging.info('Canonicalizized CPU target %s to %s/%s' % (
-            cpu_from_user, options.arch, options.cpu))
+
+        results = canon_processor(info_arch, options.cpu)
+
+        if results != None:
+            (options.arch, options.cpu) = results
+            logging.info('Canonicalizized CPU target %s to %s/%s' % (
+                cpu_from_user, options.arch, options.cpu))
+        else:
+            logging.error('Unknown or unidentifiable processor "%s"' % (options.cpu))
 
     logging.info('Target is %s-%s-%s-%s' % (
         options.compiler, options.os, options.arch, options.cpu))
@@ -2231,8 +2277,8 @@ def main(argv = None):
         raise Exception("--via-amalgamation was removed. Use --amalgamation instead.")
 
     if options.build_shared_lib and not osinfo.building_shared_supported:
-        raise Exception('Botan does not support building as shared library on the target os. '
-                'Build static using --disable-shared.')
+        logging.warning('Shared libs not supported on %s, disabling shared lib support' % (self.infofile))
+        options.build_shared_lib = False
 
     loaded_mods = choose_modules_to_use(modules, module_policy, arch, cc, options)
 

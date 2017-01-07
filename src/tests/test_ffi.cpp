@@ -42,6 +42,7 @@ class FFI_Unit_Tests : public Test
          result.test_is_eq("Patch version", botan_version_patch(), Botan::version_patch());
          result.test_is_eq("Botan version", botan_version_string(), Botan::version_cstr());
          result.test_is_eq("Botan version datestamp", botan_version_datestamp(), Botan::version_datestamp());
+         result.test_is_eq("FFI supports its own version", botan_ffi_supports_api(botan_ffi_api_version()), 0);
 
          const std::vector<uint8_t> mem1 = { 0xFF, 0xAA, 0xFF };
          const std::vector<uint8_t> mem2 = mem1;
@@ -78,10 +79,17 @@ class FFI_Unit_Tests : public Test
             TEST_FFI_OK(botan_rng_destroy, (rng));
             }
 
-         TEST_FFI_OK(botan_rng_init, (&rng, "user"));
-         TEST_FFI_OK(botan_rng_get, (rng, outbuf.data(), outbuf.size()));
-         TEST_FFI_OK(botan_rng_reseed, (rng, 256));
-         // used for the rest of this function and destroyed at the end
+         if(TEST_FFI_OK(botan_rng_init, (&rng, "user")))
+            {
+            TEST_FFI_OK(botan_rng_get, (rng, outbuf.data(), outbuf.size()));
+            TEST_FFI_OK(botan_rng_reseed, (rng, 256));
+            // used for the rest of this function and destroyed at the end
+            }
+         else
+            {
+            result.test_note("Existing early due to missing FFI RNG");
+            return {result};
+            }
 
          // hashing test
          botan_hash_t hash;
