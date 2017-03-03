@@ -173,11 +173,6 @@ class Test_Runner : public Botan_CLI::Command
 #endif
          output() << "\n";
 
-         if(rng.get() == nullptr)
-             {
-             throw Botan_Tests::Test_Error("No usable RNG enabled in build, aborting tests");
-             }
-
          Botan_Tests::Test::setup_tests(log_success, run_online_tests, run_long_tests,
                                         data_dir, pkcs11_lib, rng.get());
 
@@ -260,7 +255,7 @@ class Test_Runner : public Botan_CLI::Command
 
             for(auto&& test_name : tests_to_run)
                {
-               auto run_it = [test_name] {
+               auto run_it = [test_name]() -> std::vector<Botan_Tests::Test::Result> {
                   try {
                      return Botan_Tests::Test::run_test(test_name, false);
                   }

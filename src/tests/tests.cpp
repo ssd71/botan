@@ -406,7 +406,7 @@ std::string Test::Result::result_string(bool verbose) const
       report << "Failure " << (i+1) << ": " << m_fail_log[i] << "\n";
       }
 
-   if(m_fail_log.size() > 0 || tests_run() == 0)
+   if(m_fail_log.size() > 0 || tests_run() == 0 || verbose)
       {
       for(size_t i = 0; i != m_log.size(); ++i)
          {
@@ -545,7 +545,7 @@ std::string Test::pkcs11_lib()
 Botan::RandomNumberGenerator& Test::rng()
    {
    if(!m_test_rng)
-      throw Test_Error("Test RNG not initialized");
+      throw Test_Error("No usable RNG in build, and this test requires an RNG");
    return *m_test_rng;
    }
 
@@ -798,6 +798,13 @@ std::vector<Botan::CPUID::CPUID_bits> map_cpuid_string(const std::string& tok)
    if(tok == "altivec" || tok == "simd")
       return {Botan::CPUID::CPUID_ALTIVEC_BIT};
 #endif
+
+#if defined(BOTAN_TARGET_CPU_IS_ARM_FAMILY)
+   if(tok == "neon" || tok == "simd")
+      return {Botan::CPUID::CPUID_ARM_NEON_BIT};
+#endif
+
+   BOTAN_UNUSED(tok);
 
    return {};
    }

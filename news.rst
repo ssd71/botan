@@ -1,8 +1,36 @@
 Release Notes
 ========================================
 
+Version 1.10.15, 2017-01-12
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* Fix a bug causing modular exponentiations done modulo even numbers
+  to almost always be incorrect, unless the values were small. This
+  bug is not known to affect any cryptographic operation in Botan. (GH #754)
+
+* Avoid use of C++11 std::to_string in some code added in 1.10.14 (GH #747 #834)
+
+Version 2.0.1, 2017-01-09
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* Change an unintended behavior of 2.0.0, which named the include
+  directory ``botan-2.0``. Since future release of Botan-2 should be
+  compatible with code written against old versions, there does not
+  seem to be any reason to version the include directory with the
+  minor number. (GH #830 #833)
+
+* Fix a bug which caused an error when building on Cygwin or
+  other platforms where shared libraries are not supported.
+  (GH #821)
+
+* Enable use of readdir on Cygwin, which allows the tests to run (GH #824)
+
+* Switch to readthedocs Sphinx theme by default (GH #822 #823)
+
 Version 2.0.0, 2017-01-06
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* With this release the project adopts Semantic Versioning (GH #766)
 
 * Fix a longstanding bug in modular exponentiation which caused most
   exponentiations modulo an even number to have an incorrect result; such moduli

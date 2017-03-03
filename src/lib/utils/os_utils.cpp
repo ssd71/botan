@@ -17,6 +17,8 @@
   #include <sys/mman.h>
   #include <sys/resource.h>
   #include <unistd.h>
+  #include <signal.h>
+  #include <setjmp.h>
 #endif
 
 #if defined(BOTAN_TARGET_OS_IS_WINDOWS) || defined(BOTAN_TARGET_OS_IS_MINGW)
@@ -26,9 +28,7 @@
 
 namespace Botan {
 
-namespace OS {
-
-uint32_t get_process_id()
+uint32_t OS::get_process_id()
    {
 #if defined(BOTAN_TARGET_OS_TYPE_IS_UNIX)
    return ::getpid();
@@ -41,14 +41,16 @@ uint32_t get_process_id()
 #endif
    }
 
-uint64_t get_processor_timestamp()
+uint64_t OS::get_processor_timestamp()
    {
 #if defined(BOTAN_TARGET_OS_HAS_QUERY_PERF_COUNTER)
    LARGE_INTEGER tv;
    ::QueryPerformanceCounter(&tv);
    return tv.QuadPart;
 
-#elif defined(BOTAN_USE_GCC_INLINE_ASM) && defined(BOTAN_TARGET_CPU_IS_X86_FAMILY)
+#elif defined(BOTAN_USE_GCC_INLINE_ASM)
+
+#if defined(BOTAN_TARGET_CPU_IS_X86_FAMILY)
    if(CPUID::has_rdtsc()) // not available on all x86 CPUs
       {
       uint32_t rtc_low = 0, rtc_high = 0;
@@ -56,37 +58,58 @@ uint64_t get_processor_timestamp()
       return (static_cast<uint64_t>(rtc_high) << 32) | rtc_low;
       }
 
-#elif defined(BOTAN_USE_GCC_INLINE_ASM) && defined(BOTAN_TARGET_CPU_IS_PPC_FAMILY)
+#elif defined(BOTAN_TARGET_ARCH_IS_PPC64)
    uint32_t rtc_low = 0, rtc_high = 0;
    asm volatile("mftbu %0; mftb %1" : "=r" (rtc_high), "=r" (rtc_low));
-   return (static_cast<uint64_t>(rtc_high) << 32) | rtc_low;
 
-#elif defined(BOTAN_USE_GCC_INLINE_ASM) && defined(BOTAN_TARGET_ARCH_IS_ALPHA)
+   /*
+   qemu-ppc seems to not support mftb instr, it always returns zero.
+   If both time bases are 0, assume broken and return another clock.
+   */
+   if(rtc_high > 0 || rtc_low > 0)
+      {
+      return (static_cast<uint64_t>(rtc_high) << 32) | rtc_low;
+      }
+
+#elif defined(BOTAN_TARGET_ARCH_IS_ALPHA)
    uint64_t rtc = 0;
    asm volatile("rpcc %0" : "=r" (rtc));
    return rtc;
 
    // OpenBSD does not trap access to the %tick register
-#elif defined(BOTAN_USE_GCC_INLINE_ASM) && defined(BOTAN_TARGET_ARCH_IS_SPARC64) && !defined(BOTAN_TARGET_OS_IS_OPENBSD)
+#elif defined(BOTAN_TARGET_ARCH_IS_SPARC64) && !defined(BOTAN_TARGET_OS_IS_OPENBSD)
    uint64_t rtc = 0;
    asm volatile("rd %%tick, %0" : "=r" (rtc));
    return rtc;
 
-#elif defined(BOTAN_USE_GCC_INLINE_ASM) && defined(BOTAN_TARGET_ARCH_IS_IA64)
+#elif defined(BOTAN_TARGET_ARCH_IS_IA64)
    uint64_t rtc = 0;
    asm volatile("mov %0=ar.itc" : "=r" (rtc));
    return rtc;
 
-#elif defined(BOTAN_USE_GCC_INLINE_ASM) && defined(BOTAN_TARGET_ARCH_IS_S390X)
+#elif defined(BOTAN_TARGET_ARCH_IS_S390X)
    uint64_t rtc = 0;
    asm volatile("stck 0(%0)" : : "a" (&rtc) : "memory", "cc");
    return rtc;
 
-#elif defined(BOTAN_USE_GCC_INLINE_ASM) && defined(BOTAN_TARGET_ARCH_IS_HPPA)
+#elif defined(BOTAN_TARGET_ARCH_IS_HPPA)
    uint64_t rtc = 0;
    asm volatile("mfctl 16,%0" : "=r" (rtc)); // 64-bit only?
    return rtc;
+
+#else
+   //#warning "OS::get_processor_timestamp not implemented"
 #endif
+
+#endif
+
+   return 0;
+   }
+
+uint64_t OS::get_high_resolution_clock()
+   {
+   if(uint64_t cpu_clock = OS::get_processor_timestamp())
+      return cpu_clock;
 
    /*
    If we got here either we either don't have an asm instruction
@@ -131,7 +154,7 @@ uint64_t get_processor_timestamp()
    return std::chrono::duration_cast<std::chrono::nanoseconds>(now).count();
    }
 
-uint64_t get_system_timestamp_ns()
+uint64_t OS::get_system_timestamp_ns()
    {
 #if defined(BOTAN_TARGET_OS_HAS_CLOCK_GETTIME)
    struct timespec ts;
@@ -145,7 +168,7 @@ uint64_t get_system_timestamp_ns()
    return std::chrono::duration_cast<std::chrono::nanoseconds>(now).count();
    }
 
-size_t get_memory_locking_limit()
+size_t OS::get_memory_locking_limit()
    {
 #if defined(BOTAN_TARGET_OS_HAS_POSIX_MLOCK)
    /*
@@ -172,6 +195,7 @@ size_t get_memory_locking_limit()
       catch(std::exception&) { /* ignore it */ }
       }
 
+#if defined(RLIMIT_MEMLOCK)
    if(mlock_requested > 0)
       {
       struct ::rlimit limits;
@@ -187,6 +211,14 @@ size_t get_memory_locking_limit()
 
       return std::min<size_t>(limits.rlim_cur, mlock_requested * 1024);
       }
+#else
+   /*
+   * If RLIMIT_MEMLOCK is not defined, likely the OS does not support
+   * unprivileged mlock calls.
+   */
+   return 0;
+#endif
+
 #elif defined(BOTAN_TARGET_OS_HAS_VIRTUAL_LOCK) && defined(BOTAN_BUILD_COMPILER_IS_MSVC)
    SIZE_T working_min = 0, working_max = 0;
    DWORD working_flags = 0;
@@ -222,7 +254,7 @@ size_t get_memory_locking_limit()
    return 0;
    }
 
-void* allocate_locked_pages(size_t length)
+void* OS::allocate_locked_pages(size_t length)
    {
 #if defined(BOTAN_TARGET_OS_HAS_POSIX_MLOCK)
 
@@ -279,7 +311,7 @@ void* allocate_locked_pages(size_t length)
 #endif
    }
 
-void free_locked_pages(void* ptr, size_t length)
+void OS::free_locked_pages(void* ptr, size_t length)
    {
    if(ptr == nullptr || length == 0)
       return;
@@ -298,6 +330,86 @@ void free_locked_pages(void* ptr, size_t length)
 #endif
    }
 
+#if defined(BOTAN_TARGET_OS_TYPE_IS_UNIX)
+namespace {
+
+static ::sigjmp_buf g_sigill_jmp_buf;
+
+void botan_sigill_handler(int)
+   {
+   ::siglongjmp(g_sigill_jmp_buf, /*non-zero return value*/1);
+   }
+
 }
+#endif
+
+int OS::run_cpu_instruction_probe(std::function<int ()> probe_fn)
+   {
+   int probe_result = -3;
+
+#if defined(BOTAN_TARGET_OS_TYPE_IS_UNIX)
+   struct sigaction old_sigaction;
+   struct sigaction sigaction;
+
+   sigaction.sa_handler = botan_sigill_handler;
+   sigemptyset(&sigaction.sa_mask);
+   sigaction.sa_flags = 0;
+
+   int rc = ::sigaction(SIGILL, &sigaction, &old_sigaction);
+
+   if(rc != 0)
+      throw Exception("run_cpu_instruction_probe sigaction failed");
+
+   try
+      {
+      rc = ::sigsetjmp(g_sigill_jmp_buf, /*save sigs*/1);
+
+      if(rc == 0)
+         {
+         // first call to sigsetjmp
+         probe_result = probe_fn();
+         }
+      else if(rc == 1)
+         {
+         // non-local return from siglongjmp in signal handler: return error
+         probe_result = -1;
+         }
+      else
+         throw Exception("run_cpu_instruction_probe unexpected sigsetjmp return value");
+      }
+   catch(...)
+      {
+      probe_result = -2;
+      }
+
+   // Restore old SIGILL handler, if any
+   rc = ::sigaction(SIGILL, &old_sigaction, nullptr);
+   if(rc != 0)
+      throw Exception("run_cpu_instruction_probe sigaction restore failed");
+
+#elif defined(BOTAN_TARGET_OS_IS_WINDOWS) && defined(BOTAN_TARGET_COMPILER_IS_MSVC)
+
+   // Windows SEH
+   __try
+      {
+      try
+         {
+         probe_result = probe_fn();
+         }
+      catch(...)
+         {
+         probe_result = -2;
+         }
+      }
+   __except(::GetExceptionCode() == EXCEPTION_ILLEGAL_INSTRUCTION ?
+            EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH)
+      {
+      probe_result = -1;
+      }
+
+#endif
+
+   return probe_result;
+   }
 
 }

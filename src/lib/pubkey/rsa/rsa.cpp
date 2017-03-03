@@ -58,7 +58,6 @@ RSA_PublicKey::RSA_PublicKey(const AlgorithmIdentifier&,
       .start_cons(SEQUENCE)
         .decode(m_n)
         .decode(m_e)
-      .verify_end()
       .end_cons();
    }
 
@@ -167,7 +166,7 @@ bool RSA_PrivateKey::check_key(RandomNumberGenerator& rng, bool strong) const
    if(m_d1 != m_d % (m_p - 1) || m_d2 != m_d % (m_q - 1) || m_c != inverse_mod(m_q, m_p))
       return false;
 
-   const size_t prob = (strong) ? 56 : 12;
+   const size_t prob = (strong) ? 128 : 12;
 
    if(!is_prime(m_p, rng, prob) || !is_prime(m_q, rng, prob))
       return false;

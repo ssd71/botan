@@ -22,7 +22,7 @@ void RandomNumberGenerator::randomize_with_ts_input(uint8_t output[], size_t out
    */
    uint8_t additional_input[16] = { 0 };
    store_le(OS::get_system_timestamp_ns(), additional_input);
-   store_le(OS::get_processor_timestamp(), additional_input + 8);
+   store_le(OS::get_high_resolution_clock(), additional_input + 8);
 
    randomize_with_input(output, output_len, additional_input, sizeof(additional_input));
    }
@@ -58,7 +58,16 @@ RandomNumberGenerator* RandomNumberGenerator::make_rng()
    }
 
 #if defined(BOTAN_TARGET_OS_HAS_THREADS)
-Serialized_RNG::Serialized_RNG() : m_rng(RandomNumberGenerator::make_rng()) {}
+
+#if defined(BOTAN_HAS_AUTO_SEEDING_RNG)
+Serialized_RNG::Serialized_RNG() : m_rng(new AutoSeeded_RNG) {}
+#else
+Serialized_RNG::Serialized_RNG()
+   {
+   throw Exception("Serialized_RNG default constructor failed: AutoSeeded_RNG disabled in build");
+   }
+#endif
+
 #endif
 
 }

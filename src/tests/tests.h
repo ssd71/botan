@@ -47,7 +47,7 @@ class Test_Error : public Botan::Exception
    };
 
 /*
-* A generic test which retuns a set of results when run.
+* A generic test which returns a set of results when run.
 * The tests may not all have the same type (for example test
 * "block" returns results for "AES-128" and "AES-256").
 *
@@ -185,6 +185,12 @@ class Test
             bool test_int_eq(I1 x, I2 y, const char* what)
                {
                return test_eq(what, static_cast<size_t>(x), static_cast<size_t>(y));
+               }
+
+            template<typename I1, typename I2>
+            bool test_int_eq(const std::string& what, I1 x, I2 y)
+               {
+               return test_eq(what.c_str(), static_cast<size_t>(x), static_cast<size_t>(y));
                }
 
             bool test_lt(const std::string& what, size_t produced, size_t expected);

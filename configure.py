@@ -3,7 +3,7 @@
 """
 Configuration program for botan
 
-(C) 2009,2010,2011,2012,2013,2014,2015,2016 Jack Lloyd
+(C) 2009,2010,2011,2012,2013,2014,2015,2016,2017 Jack Lloyd
 (C) 2015,2016 Simon Warta (Kullo GmbH)
 
 Botan is released under the Simplified BSD License (see license.txt)
@@ -28,16 +28,20 @@ import shlex
 import shutil
 import string
 import subprocess
+import traceback
 import logging
 import time
 import errno
-import optparse
+import optparse # pylint: disable=deprecated-module
 
 # Avoid useless botan_version.pyc (Python 2.6 or higher)
 if 'dont_write_bytecode' in sys.__dict__:
     sys.dont_write_bytecode = True
 
-import botan_version
+import botan_version # pylint: disable=wrong-import-position
+
+class ConfigureError(Exception):
+    pass
 
 def flatten(l):
     return sum(l, [])
@@ -48,7 +52,7 @@ def chunks(l, n):
 
 def get_vc_revision():
 
-    def get_vc_revision(cmdlist):
+    def get_vc_revision_impl(cmdlist):
         try:
             cmdname = cmdlist[0]
 
@@ -71,12 +75,9 @@ def get_vc_revision():
         except OSError as e:
             logging.debug('Error getting rev from %s - %s' % (cmdname, e.strerror))
             return None
-        except Exception as e:
-            logging.debug('Error getting rev from %s - %s' % (cmdname, e))
-            return None
 
     vc_command = ['git', 'rev-parse', 'HEAD']
-    rev = get_vc_revision(vc_command)
+    rev = get_vc_revision_impl(vc_command)
     if rev is not None:
         return rev
     else:
@@ -101,7 +102,7 @@ class BuildConfigurationInformation(object):
 
     # This is used on Darwin for dylib versioning
     version_packed = version_major * 1000 + version_minor
-    
+
     """
     Constructor
     """
@@ -140,13 +141,13 @@ class BuildConfigurationInformation(object):
         self.src_dir = os.path.join(options.base_dir, 'src')
 
         def find_sources_in(basedir, srcdir):
-            for (dirpath, dirnames, filenames) in os.walk(os.path.join(basedir, srcdir)):
+            for (dirpath, _, filenames) in os.walk(os.path.join(basedir, srcdir)):
                 for filename in filenames:
                     if filename.endswith('.cpp') and not filename.startswith('.'):
                         yield os.path.join(dirpath, filename)
 
         def find_headers_in(basedir, srcdir):
-            for (dirpath, dirnames, filenames) in os.walk(os.path.join(basedir, srcdir)):
+            for (dirpath, _, filenames) in os.walk(os.path.join(basedir, srcdir)):
                 for filename in filenames:
                     if filename.endswith('.h') and not filename.startswith('.'):
                         yield os.path.join(dirpath, filename)
@@ -215,14 +216,14 @@ class BuildConfigurationInformation(object):
         return 'botan-%d.pc' % (self.version_major)
 
 
-"""
-Handle command line options
-"""
 def process_command_line(args):
+    """
+    Handle command line options
+    """
 
     parser = optparse.OptionParser(
-        formatter = optparse.IndentedHelpFormatter(max_help_position = 50),
-        version = BuildConfigurationInformation.version_string)
+        formatter=optparse.IndentedHelpFormatter(max_help_position=50),
+        version=BuildConfigurationInformation.version_string)
 
     parser.add_option('--verbose', action='store_true', default=False,
                       help='Show debug messages')
@@ -267,7 +268,7 @@ def process_command_line(args):
     target_group.add_option('--without-os-features', action='append', metavar='FEAT',
                             help='specify OS features to disable')
 
-    for isa_extn_name in ['SSE2', 'SSSE3', 'AVX2', 'AES-NI', 'AltiVec']:
+    for isa_extn_name in ['SSE2', 'SSSE3', 'AVX2', 'AES-NI', 'AltiVec', 'NEON']:
         isa_extn = isa_extn_name.lower()
 
         target_group.add_option('--disable-%s' % (isa_extn),
@@ -286,6 +287,9 @@ def process_command_line(args):
 
     build_group.add_option('--with-static-analysis', action='store_true', default=False, 
                            help='enable static analysis checks')
+
+    build_group.add_option('--without-stack-protector', action='store_false', default=True, dest='with_stack_protector',
+                           help='disable stack smashing protections')
 
     build_group.add_option('--with-coverage', action='store_true', default=False, dest='with_coverage',
                            help='add coverage info and disable opts')
@@ -332,6 +336,9 @@ def process_command_line(args):
 
     build_group.add_option('--with-external-includedir', metavar='DIR', default='',
                            help='use DIR for external includes')
+
+    build_group.add_option('--with-external-libdir', metavar='DIR', default='',
+                           help='use DIR for external libs')
 
     build_group.add_option('--with-openmp', default=False, action='store_true',
                            help='enable use of OpenMP')
@@ -384,8 +391,8 @@ def process_command_line(args):
 
     build_group.add_option('--with-python-versions', dest='python_version',
                            metavar='N.M',
-                           default='.'.join(map(str, sys.version_info[0:2])),
-                           help='where to install botan.py (def %default)')
+                           default='%d.%d' % (sys.version_info[0], sys.version_info[1]),
+                           help='where to install botan2.py (def %default)')
 
     build_group.add_option('--with-valgrind', help='use valgrind API',
                            dest='with_valgrind', action='store_true', default=False)
@@ -397,7 +404,7 @@ def process_command_line(args):
                            default=False, help='Generate a file which includes all sources that will be compiled. Useful for cppcheck checking.')
 
     build_group.add_option('--unsafe-fuzzer-mode', action='store_true', default=False,
-                          help='disable essential checks for testing')
+                           help='disable essential checks for testing')
 
     mods_group = optparse.OptionGroup(parser, 'Module selection')
 
@@ -420,7 +427,7 @@ def process_command_line(args):
                           help='minimize build')
 
     # Should be derived from info.txt but this runs too early
-    third_party  = ['boost', 'bzip2', 'lzma', 'openssl', 'sqlite3', 'zlib', 'tpm', 'pkcs11']
+    third_party = ['boost', 'bzip2', 'lzma', 'openssl', 'sqlite3', 'zlib', 'tpm']
 
     for mod in third_party:
         mods_group.add_option('--with-%s' % (mod),
@@ -493,10 +500,10 @@ def process_command_line(args):
     (options, args) = parser.parse_args(args)
 
     if args != []:
-        raise Exception('Unhandled option(s): ' + ' '.join(args))
+        raise ConfigureError('Unhandled option(s): ' + ' '.join(args))
     if options.with_endian != None and \
        options.with_endian not in ['little', 'big']:
-        raise Exception('Bad value to --with-endian "%s"' % (
+        raise ConfigureError('Bad value to --with-endian "%s"' % (
             options.with_endian))
 
     if options.debug_mode:
@@ -522,43 +529,30 @@ def process_command_line(args):
 
     return options
 
-"""
-Generic lexer function for info.txt and src/build-data files
-"""
 def lex_me_harder(infofile, to_obj, allowed_groups, name_val_pairs):
-
-    to_obj.infofile = infofile
+    """
+    Generic lexer function for info.txt and src/build-data files
+    """
 
     # Format as a nameable Python variable
     def py_var(group):
         return group.replace(':', '_')
 
-    class LexerError(Exception):
+    class LexerError(ConfigureError):
         def __init__(self, msg, line):
+            super(LexerError, self).__init__(msg)
             self.msg = msg
             self.line = line
 
         def __str__(self):
             return '%s at %s:%d' % (self.msg, infofile, self.line)
 
-    (dirname, basename) = os.path.split(infofile)
-
-    to_obj.lives_in = dirname
-    if basename == 'info.txt':
-        (obj_dir,to_obj.basename) = os.path.split(dirname)
-        if os.access(os.path.join(obj_dir, 'info.txt'), os.R_OK):
-            to_obj.parent_module = os.path.basename(obj_dir)
-        else:
-            to_obj.parent_module = None
-    else:
-        to_obj.basename = basename.replace('.txt', '')
-
     lexer = shlex.shlex(open(infofile), infofile, posix=True)
     lexer.wordchars += '|:.<>/,-!+' # handle various funky chars in info.txt
 
     for group in allowed_groups:
         to_obj.__dict__[py_var(group)] = []
-    for (key,val) in name_val_pairs.items():
+    for (key, val) in name_val_pairs.items():
         to_obj.__dict__[key] = val
 
     def lexed_tokens(): # Convert to an interator
@@ -589,7 +583,7 @@ def lex_me_harder(infofile, to_obj, allowed_groups, name_val_pairs):
                                      lexer.lineno)
 
         elif token in name_val_pairs.keys():
-            if type(to_obj.__dict__[token]) is list:
+            if isinstance(to_obj.__dict__[token], list):
                 to_obj.__dict__[token].append(lexer.get_token())
 
                 # Dirty hack
@@ -606,28 +600,49 @@ def lex_me_harder(infofile, to_obj, allowed_groups, name_val_pairs):
         else: # No match -> error
             raise LexerError('Bad token "%s"' % (token), lexer.lineno)
 
-"""
-Convert a lex'ed map (from build-data files) from a list to a dict
-"""
 def force_to_dict(l):
-    return dict(zip(l[::3],l[2::3]))
+    """
+    Convert a lex'ed map (from build-data files) from a list to a dict
+    TODO: Add error checking of input...
+    """
 
-"""
-Represents the information about a particular module
-"""
-class ModuleInfo(object):
+    return dict(zip(l[::3], l[2::3]))
+
+
+class InfoObject(object):
+    def __init__(self, infofile):
+        """
+        Constructor sets members `infofile`, `lives_in`, `parent_module` and `basename`
+        """
+
+        self.infofile = infofile
+        (dirname, basename) = os.path.split(infofile)
+        self.lives_in = dirname
+        if basename == 'info.txt':
+            (obj_dir, self.basename) = os.path.split(dirname)
+            if os.access(os.path.join(obj_dir, 'info.txt'), os.R_OK):
+                self.parent_module = os.path.basename(obj_dir)
+            else:
+                self.parent_module = None
+        else:
+            self.basename = basename.replace('.txt', '')
+
+
+class ModuleInfo(InfoObject):
+    """
+    Represents the information about a particular module
+    """
 
     def __init__(self, infofile):
-
+        super(ModuleInfo, self).__init__(infofile)
         lex_me_harder(infofile, self,
-                      ['header:internal', 'header:public', 
-                        'header:external', 'requires', 'os', 'arch', 
-                        'cc', 'libs', 'frameworks', 'comment', 
-                        'warning'],
-                      {
-                        'load_on': 'auto',
-                        'define': [],
-                        'need_isa': ''})
+                      ['header:internal', 'header:public',
+                       'header:external', 'requires', 'os', 'arch',
+                       'cc', 'libs', 'frameworks', 'comment',
+                       'warning'],
+                      {'load_on': 'auto',
+                       'define': [],
+                       'need_isa': ''})
 
         all_source_files = []
         all_header_files = []
@@ -652,18 +667,18 @@ class ModuleInfo(object):
             pub_header = set(self.header_public)
             int_header = set(self.header_internal)
 
-            if pub_header.isdisjoint(int_header) == False:
+            if not pub_header.isdisjoint(int_header):
                 logging.error("Module %s header contains same header in public and internal sections" % (infofile))
 
         # Coerce to more useful types
         def convert_lib_list(l):
             if len(l) % 3 != 0:
-                raise Exception("Bad <libs> in module %s" % (self.basename))
+                raise ConfigureError("Bad <libs> in module %s" % (self.basename))
             result = {}
 
             for sep in l[1::3]:
-                if(sep != '->'):
-                    raise Exception("Bad <libs> in module %s" % (self.basename))
+                if sep != '->':
+                    raise ConfigureError("Bad <libs> in module %s" % (self.basename))
 
             for (targetlist, vallist) in zip(l[::3], l[2::3]):
                 vals = vallist.split(',')
@@ -691,7 +706,7 @@ class ModuleInfo(object):
         self.header_external = [add_dir_name(s) for s in self.header_external]
 
         for src in self.source + self.header_internal + self.header_public + self.header_external:
-            if os.access(src, os.R_OK) == False:
+            if not os.access(src, os.R_OK):
                 logging.error("Missing file %s in %s" % (src, infofile))
 
         if self.comment != []:
@@ -704,25 +719,25 @@ class ModuleInfo(object):
         else:
             self.warning = None
 
-        def intersect_check(typeA, listA, typeB, listB):
-           intersection = set.intersection(set(listA), set(listB))
-           if len(intersection) > 0:
-              logging.error('Headers %s marked both %s and %s' % (' '.join(intersection), typeA, typeB))
+        def intersect_check(type_a, list_a, type_b, list_b):
+            intersection = set.intersection(set(list_a), set(list_b))
+            if len(intersection) > 0:
+                logging.error('Headers %s marked both %s and %s' % (' '.join(intersection), type_a, type_b))
 
         intersect_check('public', self.header_public, 'internal', self.header_internal)
         intersect_check('public', self.header_public, 'external', self.header_external)
         intersect_check('external', self.header_external, 'internal', self.header_internal)
 
     def cross_check(self, arch_info, os_info, cc_info):
-        for os in self.os:
-            if os not in os_info:
-                raise Exception('Module %s mentions unknown OS %s' % (self.infofile, os))
-        for cc in self.cc:
-            if cc not in cc_info:
-                raise Exception('Module %s mentions unknown compiler %s' % (self.infofile, cc))
-        for arch in self.arch:
-            if arch not in arch_info:
-                raise Exception('Module %s mentions unknown arch %s' % (self.infofile, arch))
+        for supp_os in self.os:
+            if supp_os not in os_info:
+                raise ConfigureError('Module %s mentions unknown OS %s' % (self.infofile, supp_os))
+        for supp_cc in self.cc:
+            if supp_cc not in cc_info:
+                raise ConfigureError('Module %s mentions unknown compiler %s' % (self.infofile, supp_cc))
+        for supp_arch in self.arch:
+            if supp_arch not in arch_info:
+                raise ConfigureError('Module %s mentions unknown arch %s' % (self.infofile, supp_arch))
 
     def sources(self):
         return self.source
@@ -756,8 +771,8 @@ class ModuleInfo(object):
 
         return True
 
-    def compatible_os(self, os):
-        return self.os == [] or os in self.os
+    def compatible_os(self, os_name):
+        return self.os == [] or os_name in self.os
 
     def compatible_compiler(self, cc, arch):
         if self.cc != [] and cc.basename not in self.cc:
@@ -776,11 +791,12 @@ class ModuleInfo(object):
             deps.append(self.parent_module)
         return deps
 
-    """
-    Ensure that all dependencies of this module actually exist, warning
-    about any that do not
-    """
     def dependencies_exist(self, modules):
+        """
+        Ensure that all dependencies of this module actually exist, warning
+        about any that do not
+        """
+
         all_deps = [s.split('|') for s in self.dependencies()]
 
         for missing in [s for s in flatten(all_deps) if s not in modules]:
@@ -794,8 +810,9 @@ class ModuleInfo(object):
             return 0
         return 1
 
-class ModulePolicyInfo(object):
+class ModulePolicyInfo(InfoObject):
     def __init__(self, infofile):
+        super(ModulePolicyInfo, self).__init__(infofile)
         lex_me_harder(infofile, self,
                       ['required', 'if_available', 'prohibited'], {})
 
@@ -812,15 +829,16 @@ class ModulePolicyInfo(object):
         check('prohibited', self.prohibited)
 
 
-class ArchInfo(object):
+class ArchInfo(InfoObject):
     def __init__(self, infofile):
+        super(ArchInfo, self).__init__(infofile)
         lex_me_harder(infofile, self,
                       ['aliases', 'submodels', 'submodel_aliases', 'isa_extensions'],
-                      { 'endian': None,
-                        'family': None,
-                        'unaligned': 'no',
-                        'wordsize': 32
-                        })
+                      {'endian': None,
+                       'family': None,
+                       'unaligned': 'no',
+                       'wordsize': 32
+                      })
 
         self.submodel_aliases = force_to_dict(self.submodel_aliases)
 
@@ -828,24 +846,27 @@ class ArchInfo(object):
 
         self.wordsize = int(self.wordsize)
 
-    """
-    Return a list of all submodels for this arch, ordered longest
-    to shortest
-    """
     def all_submodels(self):
-        return sorted([(k,k) for k in self.submodels] +
-                      [k for k in self.submodel_aliases.items()],
-                      key = lambda k: len(k[0]), reverse = True)
+        """
+        Return a list of all submodels for this arch, ordered longest
+        to shortest
+        """
 
-    """
-    Return CPU-specific defines for build.h
-    """
-    def defines(self, options):
+        return sorted([(k, k) for k in self.submodels] +
+                      [k for k in self.submodel_aliases.items()],
+                      key=lambda k: len(k[0]), reverse=True)
+
+    def defines(self, cc, options):
+        """
+        Return CPU-specific defines for build.h
+        """
+
         def form_macro(cpu_name):
             return cpu_name.upper().replace('.', '').replace('-', '_')
 
-        macros = ['TARGET_ARCH_IS_%s' %
-                  (form_macro(self.basename.upper()))]
+        macros = []
+
+        macros.append('TARGET_ARCH_IS_%s' % (form_macro(self.basename.upper())))
 
         if self.basename != options.cpu:
             macros.append('TARGET_CPU_IS_%s' % (form_macro(options.cpu)))
@@ -856,7 +877,10 @@ class ArchInfo(object):
         isa_extensions = sorted(enabled_isas - disabled_isas)
 
         for isa in isa_extensions:
-            macros.append('TARGET_SUPPORTS_%s' % (form_macro(isa)))
+            if cc.isa_flags_for(isa, self.basename) is not None:
+                macros.append('TARGET_SUPPORTS_%s' % (form_macro(isa)))
+            else:
+                logging.warning("Disabling support for %s intrinsics due to missing flag for compiler" % (isa))
 
         endian = options.with_endian or self.endian
 
@@ -890,46 +914,48 @@ class ArchInfo(object):
 
         return macros
 
-class CompilerInfo(object):
+class CompilerInfo(InfoObject):
     def __init__(self, infofile):
+        super(CompilerInfo, self).__init__(infofile)
         lex_me_harder(infofile, self,
                       ['so_link_commands', 'binary_link_commands', 'mach_opt', 'mach_abi_linking', 'isa_flags'],
-                      { 'binary_name': None,
-                        'linker_name': None,
-                        'macro_name': None,
-                        'output_to_option': '-o ',
-                        'add_include_dir_option': '-I',
-                        'add_lib_dir_option': '-L',
-                        'add_lib_option': '-l',
-                        'add_framework_option': '-framework ',
-                        'compile_flags': '',
-                        'debug_info_flags': '',
-                        'optimization_flags': '',
-                        'size_optimization_flags': '',
-                        'coverage_flags': '',
-                        'sanitizer_flags': '',
-                        'static_analysis_flags': '',
-                        'shared_flags': '',
-                        'lang_flags': '',
-                        'warning_flags': '',
-                        'maintainer_warning_flags': '',
-                        'visibility_build_flags': '',
-                        'visibility_attribute': '',
-                        'ar_command': None,
-                        'makefile_style': ''
-                        })
+                      {'binary_name': None,
+                       'linker_name': None,
+                       'macro_name': None,
+                       'output_to_option': '-o ',
+                       'add_include_dir_option': '-I',
+                       'add_lib_dir_option': '-L',
+                       'add_lib_option': '-l',
+                       'add_framework_option': '-framework ',
+                       'compile_flags': '',
+                       'debug_info_flags': '',
+                       'optimization_flags': '',
+                       'size_optimization_flags': '',
+                       'coverage_flags': '',
+                       'sanitizer_flags': '',
+                       'static_analysis_flags': '',
+                       'stack_protector_flags': '',
+                       'shared_flags': '',
+                       'lang_flags': '',
+                       'warning_flags': '',
+                       'maintainer_warning_flags': '',
+                       'visibility_build_flags': '',
+                       'visibility_attribute': '',
+                       'ar_command': None,
+                       'makefile_style': ''
+                      })
 
-        self.so_link_commands     = force_to_dict(self.so_link_commands)
+        self.so_link_commands = force_to_dict(self.so_link_commands)
         self.binary_link_commands = force_to_dict(self.binary_link_commands)
-        self.mach_abi_linking     = force_to_dict(self.mach_abi_linking)
-        self.isa_flags            = force_to_dict(self.isa_flags)
+        self.mach_abi_linking = force_to_dict(self.mach_abi_linking)
+        self.isa_flags = force_to_dict(self.isa_flags)
 
         self.mach_opt_flags = {}
 
         while self.mach_opt != []:
             proc = self.mach_opt.pop(0)
             if self.mach_opt.pop(0) != '->':
-                raise Exception('Parsing err in %s mach_opt' % (self.basename))
+                raise ConfigureError('Parsing err in %s mach_opt' % (self.basename))
 
             flags = self.mach_opt.pop(0)
             regex = ''
@@ -938,7 +964,7 @@ class CompilerInfo(object):
                (len(self.mach_opt) == 1 or self.mach_opt[1] != '->'):
                 regex = self.mach_opt.pop(0)
 
-            self.mach_opt_flags[proc] = (flags,regex)
+            self.mach_opt_flags[proc] = (flags, regex)
 
         del self.mach_opt
 
@@ -950,10 +976,11 @@ class CompilerInfo(object):
             return self.isa_flags[arch_isa]
         return None
 
-    """
-    Return the shared library build flags, if any
-    """
     def gen_shared_flags(self, options):
+        """
+        Return the shared library build flags, if any
+        """
+
         def flag_builder():
             if options.build_shared_lib:
                 yield self.shared_flags
@@ -967,10 +994,11 @@ class CompilerInfo(object):
             return self.visibility_attribute
         return ''
 
-    """
-    Return the machine specific ABI flags
-    """
     def mach_abi_link_flags(self, options):
+        """
+        Return the machine specific ABI flags
+        """
+
         def all():
             if options.with_debug_info and 'all-debug' in self.mach_abi_linking:
                 return 'all-debug'
@@ -982,24 +1010,27 @@ class CompilerInfo(object):
             if flag != None and flag != '' and flag not in abi_link:
                 abi_link.append(flag)
 
+        if options.with_stack_protector and self.stack_protector_flags != '':
+            abi_link.append(self.stack_protector_flags)
+
         if options.with_coverage_info:
             if self.coverage_flags == '':
-                raise Exception('No coverage handling for %s' % (self.basename))
+                raise ConfigureError('No coverage handling for %s' % (self.basename))
             abi_link.append(self.coverage_flags)
 
         if options.with_sanitizers:
             if self.sanitizer_flags == '':
-                raise Exception('No sanitizer handling for %s' % (self.basename))
+                raise ConfigureError('No sanitizer handling for %s' % (self.basename))
             abi_link.append(self.sanitizer_flags)
 
         if options.with_openmp:
             if 'openmp' not in self.mach_abi_linking:
-                raise Exception('No support for OpenMP for %s' % (self.basename))
+                raise ConfigureError('No support for OpenMP for %s' % (self.basename))
             abi_link.append(self.mach_abi_linking['openmp'])
 
         if options.with_cilkplus:
             if 'cilkplus' not in self.mach_abi_linking:
-                raise Exception('No support for Cilk Plus for %s' % (self.basename))
+                raise ConfigureError('No support for Cilk Plus for %s' % (self.basename))
             abi_link.append(self.mach_abi_linking['cilkplus'])
 
         abi_flags = ' '.join(sorted(abi_link))
@@ -1007,9 +1038,7 @@ class CompilerInfo(object):
         if options.cc_abi_flags != '':
             abi_flags += ' ' + options.cc_abi_flags
 
-        if abi_flags != '':
-            return ' ' + abi_flags
-        return ''
+        return abi_flags
 
     def cc_warning_flags(self, options):
         def gen_flags():
@@ -1063,56 +1092,61 @@ class CompilerInfo(object):
         else:
             return [osname, 'default']
 
-    """
-    Return the command needed to link a shared object
-    """
     def so_link_command_for(self, osname, options):
+        """
+        Return the command needed to link a shared object
+        """
+
         for s in self._so_link_search(osname, options.with_debug_info):
             if s in self.so_link_commands:
                 return self.so_link_commands[s]
 
-        raise Exception("No shared library link command found for target '%s' in compiler settings '%s'" %
-                    (osname, self.infofile))
+        raise ConfigureError(
+            "No shared library link command found for target '%s' in compiler settings '%s'" %
+            (osname, self.infofile))
 
-    """
-    Return the command needed to link an app/test object
-    """
     def binary_link_command_for(self, osname, options):
+        """
+        Return the command needed to link an app/test object
+        """
+
         for s in self._so_link_search(osname, options.with_debug_info):
             if s in self.binary_link_commands:
                 return self.binary_link_commands[s]
 
         return '$(LINKER)'
 
-    """
-    Return defines for build.h
-    """
     def defines(self):
+        """
+        Return defines for build.h
+        """
+
         return ['BUILD_COMPILER_IS_' + self.macro_name]
 
-class OsInfo(object):
+class OsInfo(InfoObject):
     def __init__(self, infofile):
+        super(OsInfo, self).__init__(infofile)
         lex_me_harder(infofile, self,
                       ['aliases', 'target_features'],
-                      { 'os_type': None,
-                        'program_suffix': '',
-                        'obj_suffix': 'o',
-                        'soname_suffix': '',
-                        'soname_pattern_patch': '',
-                        'soname_pattern_abi': '',
-                        'soname_pattern_base': '',
-                        'static_suffix': 'a',
-                        'ar_command': 'ar crs',
-                        'ar_needs_ranlib': False,
-                        'install_root': '/usr/local',
-                        'header_dir': 'include',
-                        'bin_dir': 'bin',
-                        'lib_dir': 'lib',
-                        'doc_dir': 'share/doc',
-                        'building_shared_supported': 'yes',
-                        'install_cmd_data': 'install -m 644',
-                        'install_cmd_exec': 'install -m 755'
-                        })
+                      {'os_type': None,
+                       'program_suffix': '',
+                       'obj_suffix': 'o',
+                       'soname_suffix': '',
+                       'soname_pattern_patch': '',
+                       'soname_pattern_abi': '',
+                       'soname_pattern_base': '',
+                       'static_suffix': 'a',
+                       'ar_command': 'ar crs',
+                       'ar_needs_ranlib': False,
+                       'install_root': '/usr/local',
+                       'header_dir': 'include',
+                       'bin_dir': 'bin',
+                       'lib_dir': 'lib',
+                       'doc_dir': 'share/doc',
+                       'building_shared_supported': 'yes',
+                       'install_cmd_data': 'install -m 644',
+                       'install_cmd_exec': 'install -m 755'
+                      })
 
         if self.soname_pattern_base != '':
             if self.soname_pattern_patch == '' and self.soname_pattern_abi == '':
@@ -1123,11 +1157,11 @@ class OsInfo(object):
                 pass # all 3 values set, nothing needs to happen here
             else:
                 # base set, only one of patch/abi set
-                raise Exception("Invalid soname_patterns in %s" % (self.infofile))
+                raise ConfigureError("Invalid soname_patterns in %s" % (self.infofile))
 
         if self.soname_pattern_base == '' and self.soname_suffix != '':
-            self.soname_pattern_base  = "libbotan-{version_major}.%s" % (self.soname_suffix)
-            self.soname_pattern_abi   = self.soname_pattern_base + ".{abi_rev}"
+            self.soname_pattern_base = "libbotan-{version_major}.%s" % (self.soname_suffix)
+            self.soname_pattern_abi = self.soname_pattern_base + ".{abi_rev}"
             self.soname_pattern_patch = self.soname_pattern_abi + ".{version_minor}.{version_patch}"
 
         self.ar_needs_ranlib = bool(self.ar_needs_ranlib)
@@ -1135,7 +1169,7 @@ class OsInfo(object):
         self.building_shared_supported = (True if self.building_shared_supported == 'yes' else False)
 
     def ranlib_command(self):
-        return ('ranlib' if self.ar_needs_ranlib else 'true')
+        return 'ranlib' if self.ar_needs_ranlib else 'true'
 
     def defines(self, options):
         r = []
@@ -1169,7 +1203,7 @@ def canon_processor(archinfo, proc):
         if ainfo.basename == proc or proc in ainfo.aliases:
             return (ainfo.basename, ainfo.basename)
 
-        for (match,submodel) in ainfo.all_submodels():
+        for (match, submodel) in ainfo.all_submodels():
             if proc == submodel or proc == match:
                 return (ainfo.basename, submodel)
 
@@ -1177,11 +1211,13 @@ def canon_processor(archinfo, proc):
 
     # Now, try searching via regex match
     for ainfo in archinfo.values():
-        for (match,submodel) in ainfo.all_submodels():
+        for (match, submodel) in ainfo.all_submodels():
             if re.search(match, proc) != None:
                 logging.debug('Possible match "%s" with "%s" (%s)' % (
                     proc, match, submodel))
                 return (ainfo.basename, submodel)
+
+    return None
 
 def system_cpu_info():
 
@@ -1196,16 +1232,16 @@ def system_cpu_info():
     try:
         with open('/proc/cpuinfo') as f:
             for line in f.readlines():
-                if line.find(':') != -1:
-                    (key,val) = [s.strip() for s in line.split(':')]
+                colon = line.find(':')
+                if colon > 1:
+                    key = line[0:colon].strip()
+                    val = ' '.join([s.strip() for s in line[colon+1:].split(' ') if s != ''])
 
                     # Different Linux arch use different names for this field in cpuinfo
                     if key in ["model name", "cpu model", "Processor"]:
-                        val = ' '.join(val.split())
-                        logging.debug('Found CPU model "%s" in /proc/cpuinfo' % (val))
+                        logging.info('Detected CPU model "%s" in /proc/cpuinfo' % (val))
                         cpu_info.append(val)
                         break
-
     except IOError:
         pass
 
@@ -1215,31 +1251,31 @@ def guess_processor(archinfo):
     cpu_info = system_cpu_info()
 
     for input in cpu_info:
-
         if input != '':
-            try:
-                match = canon_processor(archinfo, input)
-                if match != None:
-                    logging.debug("Matched '%s' to processor '%s'" % (input, match))
-                    return match
-            except Exception as e:
+            match = canon_processor(archinfo, input)
+            if match != None:
+                logging.debug("Matched '%s' to processor '%s'" % (input, match))
+                return match
+            else:
                 logging.debug("Failed to deduce CPU from '%s'" % (input))
 
-    raise Exception('Could not determine target CPU; set with --cpu')
+    raise ConfigureError('Could not determine target CPU; set with --cpu')
 
-"""
-Read a whole file into memory as a string
-"""
 def slurp_file(filename):
+    """
+    Read a whole file into memory as a string
+    """
+
     # type: (object) -> object
     if filename is None:
         return ''
     return ''.join(open(filename).readlines())
 
-"""
-Perform template substitution
-"""
 def process_template(template_file, variables):
+    """
+    Perform template substitution
+    """
+
     class PercentSignTemplate(string.Template):
         delimiter = '%'
 
@@ -1247,72 +1283,72 @@ def process_template(template_file, variables):
         template = PercentSignTemplate(slurp_file(template_file))
         return template.substitute(variables)
     except KeyError as e:
-        raise Exception('Unbound var %s in template %s' % (e, template_file))
+        raise ConfigureError('Unbound var %s in template %s' % (e, template_file))
     except Exception as e:
-        raise Exception('Exception %s in template %s' % (e, template_file))
+        raise ConfigureError('Exception %s in template %s' % (e, template_file))
 
 def makefile_list(items):
     items = list(items) # force evaluation so we can slice it
     return (' '*16).join([item + ' \\\n' for item in items[:-1]] + [items[-1]])
 
-def gen_bakefile(build_config, options):
+def gen_bakefile(build_config, options, external_libs):
 
     def bakefile_sources(file, sources):
         for src in sources:
-                (dir,filename) = os.path.split(os.path.normpath(src))
-                dir = dir.replace('\\','/')
-                try:
-                    param, dir = dir.split('/src/',1)
-                    file.write('\tsources { src/%s/%s } \n' % ( dir, filename))
-                except ValueError:
-                    pass
-                    file.write('\tsources { %s/%s } \n' % ( dir, filename))
-            
+            (dir, filename) = os.path.split(os.path.normpath(src))
+            dir = dir.replace('\\', '/')
+            _, dir = dir.split('src/', 1)
+            file.write('\tsources { src/%s/%s } \n' % (dir, filename))
+
     def bakefile_cli_headers(file, headers):
         for header in headers:
-                (dir,filename) = os.path.split(os.path.normpath(header))
-                dir = dir.replace('\\','/')
-                try:
-                    param, dir = dir.split('/src/',1)
-                    file.write('\theaders { src/%s/%s } \n' % ( dir, filename))
-                except ValueError:
-                    pass
-                    file.write('\theaders { %s/%s } \n' % ( dir, filename))
+            (dir, filename) = os.path.split(os.path.normpath(header))
+            dir = dir.replace('\\', '/')
+            _, dir = dir.split('src/', 1)
+            file.write('\theaders { src/%s/%s } \n' % (dir, filename))
 
     def bakefile_test_sources(file, sources):
         for src in sources:
-                (dir,filename) = os.path.split(os.path.normpath(src))
-                file.write('\tsources { src/tests/%s } \n' %filename)
+            (_, filename) = os.path.split(os.path.normpath(src))
+            file.write('\tsources { src/tests/%s } \n' %filename)
 
-    f = open('botan.bkl','w')
+    f = open('botan.bkl', 'w')
     f.write('toolsets = vs2013;\n')
 
     # shared library project
     f.write('shared-library botan {\n')
     f.write('\tdefines = "BOTAN_DLL=__declspec(dllexport)";\n')
-    bakefile_sources( f, build_config.sources )
+    bakefile_sources(f, build_config.sources)
     f.write('}\n')
 
     # cli project
     f.write('program cli {\n')
     f.write('\tdeps = botan;\n')
-    bakefile_sources( f, build_config.cli_sources )
-    bakefile_cli_headers( f, build_config.cli_headers )
+    bakefile_sources(f, build_config.cli_sources)
+    bakefile_cli_headers(f, build_config.cli_headers)
     f.write('}\n')
 
     # tests project
     f.write('program tests {\n')
     f.write('\tdeps = botan;\n')
-    bakefile_test_sources( f, build_config.test_sources )
+    bakefile_test_sources(f, build_config.test_sources)
     f.write('}\n')
 
     # global options
-    f.write('includedirs += build/include/;\n')    
+    f.write('includedirs += build/include/;\n')
+
+    for lib in external_libs.split(" "):
+        f.write('libs += "%s";\n' %lib.replace('.lib', ''))
 
     if options.with_external_includedir:
-        external_inc_dir = options.with_external_includedir.replace('\\','/')
+        external_inc_dir = options.with_external_includedir.replace('\\', '/')
         # Attention: bakefile supports only relative paths
-        f.write('includedirs += "%s";\n' %external_inc_dir )
+        f.write('includedirs += "%s";\n' %external_inc_dir)
+
+    if options.with_external_libdir:
+        external_lib_dir = options.with_external_libdir.replace('\\', '/')
+        # Attention: bakefile supports only relative paths
+        f.write('libdirs += "%s";\n' %external_lib_dir)
 
     if build_config.external_headers:
         f.write('includedirs += build/include/external;\n')
@@ -1339,18 +1375,24 @@ def gen_makefile_lists(var, build_config, options, modules, cc, arch, osinfo):
         for isa in isas:
             flag = cc.isa_flags_for(isa, arch.basename)
             if flag is None:
-                raise Exception('Compiler %s does not support %s' % (cc.basename, isa))
+                raise ConfigureError('Compiler %s does not support %s' % (cc.basename, isa))
             flags.append(flag)
         return '' if len(flags) == 0 else (' ' + ' '.join(sorted(list(flags))))
 
     def isa_specific_flags(cc, src):
 
         def simd_dependencies():
-            if 'sse2' in arch.isa_extensions:
-                return ['sse2']
-            elif 'altivec' in arch.isa_extensions:
-                return ['altivec']
+
+            for simd32_impl in ['sse2', 'altivec', 'neon']:
+                if simd32_impl in arch.isa_extensions and cc.isa_flags_for(simd32_impl, arch.basename) is not None:
+                    return [simd32_impl]
+
+            # default scalar
             return []
+
+        if os.path.basename(src) == 'test_simd.cpp':
+            isas = list(simd_dependencies())
+            return get_isa_specific_flags(cc, isas)
 
         for mod in modules:
             if src in mod.sources():
@@ -1361,14 +1403,14 @@ def gen_makefile_lists(var, build_config, options, modules, cc, arch, osinfo):
                 return get_isa_specific_flags(cc, isas)
 
         if src.startswith('botan_all_'):
-            isa =  src.replace('botan_all_','').replace('.cpp', '').split('_')
+            isa = src.replace('botan_all_', '').replace('.cpp', '').split('_')
             return get_isa_specific_flags(cc, isa)
 
         return ''
 
     def objectfile_list(sources, obj_dir):
         for src in sources:
-            (dir,file) = os.path.split(os.path.normpath(src))
+            (dir, file) = os.path.split(os.path.normpath(src))
 
             parts = dir.split(os.sep)
             if 'src' in parts:
@@ -1380,7 +1422,7 @@ def gen_makefile_lists(var, build_config, options, modules, cc, arch, osinfo):
             elif file.find('botan_all') != -1:
                 parts = []
             else:
-                raise Exception("Unexpected file '%s/%s'" % (dir, file))
+                raise ConfigureError("Unexpected file '%s/%s'" % (dir, file))
 
             if parts != []:
 
@@ -1409,14 +1451,15 @@ def gen_makefile_lists(var, build_config, options, modules, cc, arch, osinfo):
 
             yield os.path.join(obj_dir, name)
 
-    """
-    Form snippets of makefile for building each source file
-    """
     def build_commands(sources, obj_dir, flags):
+        """
+        Form snippets of makefile for building each source file
+        """
+
         includes = cc.add_include_dir_option + build_config.include_dir
-        includes+= ' ' + cc.add_include_dir_option + build_config.external_include_dir if build_config.external_headers else ''
-        includes+= ' ' + cc.add_include_dir_option + options.with_external_includedir if options.with_external_includedir else ''
-        for (obj_file,src) in zip(objectfile_list(sources, obj_dir), sources):
+        includes += (' ' + cc.add_include_dir_option + build_config.external_include_dir) if build_config.external_headers else ''
+        includes += (' ' + cc.add_include_dir_option + options.with_external_includedir) if options.with_external_includedir else ''
+        for (obj_file, src) in zip(objectfile_list(sources, obj_dir), sources):
             yield '%s: %s\n\t$(CXX)%s $(%s_FLAGS) %s %s %s %s$@\n' % (
                 obj_file, src,
                 isa_specific_flags(cc, src),
@@ -1434,29 +1477,35 @@ def gen_makefile_lists(var, build_config, options, modules, cc, arch, osinfo):
         build_key = '%s_build_cmds' % (t)
         var[build_key] = '\n'.join(build_commands(src_list, src_dir, t.upper()))
 
-"""
-Create the template variables needed to process the makefile, build.h, etc
-"""
 def create_template_vars(build_config, options, modules, cc, arch, osinfo):
+    """
+    Create the template variables needed to process the makefile, build.h, etc
+    """
+
     def make_cpp_macros(macros):
         return '\n'.join(['#define BOTAN_' + macro for macro in macros])
 
-    """
-    Figure out what external libraries are needed based on selected modules
-    """
+    def external_link_cmd():
+        return ' ' + cc.add_lib_dir_option + options.with_external_libdir if options.with_external_libdir else ''
+
     def link_to():
+        """
+        Figure out what external libraries are needed based on selected modules
+        """
+
         return do_link_to('libs')
 
-    """
-    Figure out what external frameworks are needed based on selected modules
-    """
     def link_to_frameworks():
+        """
+        Figure out what external frameworks are needed based on selected modules
+        """
+
         return do_link_to('frameworks')
 
     def do_link_to(module_member_name):
         libs = set()
         for module in modules:
-            for (osname,link_to) in getattr(module, module_member_name).items():
+            for (osname, link_to) in getattr(module, module_member_name).items():
                 if osname == 'all' or osname == osinfo.basename:
                     libs |= set(link_to)
                 else:
@@ -1477,18 +1526,18 @@ def create_template_vars(build_config, options, modules, cc, arch, osinfo):
             return os.path.join(options.with_build_dir, path)
         return path
 
-    def innosetup_arch(os, arch):
-        if os == 'windows':
-            inno_arch = { 'x86_32': '', 'x86_64': 'x64', 'ia64': 'ia64' }
+    def innosetup_arch(os_name, arch):
+        if os_name == 'windows':
+            inno_arch = {'x86_32': '', 'x86_64': 'x64', 'ia64': 'ia64'}
             if arch in inno_arch:
                 return inno_arch[arch]
             else:
-                logging.warn('Unknown arch in innosetup_arch %s' % (arch))
+                logging.warning('Unknown arch in innosetup_arch %s' % (arch))
         return None
 
     def read_pem(filename):
         lines = [line.rstrip() for line in open(filename)]
-        for ndx, line in enumerate(lines):
+        for ndx, _ in enumerate(lines):
             lines[ndx] = ''.join(('\"', lines[ndx], '\" \\', '\n'))
         return ''.join(lines)
 
@@ -1580,9 +1629,9 @@ def create_template_vars(build_config, options, modules, cc, arch, osinfo):
         'shared_flags': cc.gen_shared_flags(options),
         'visibility_attribute': cc.gen_visibility_attribute(options),
 
-        'lib_link_cmd':  cc.so_link_command_for(osinfo.basename, options),
-        'cli_link_cmd':  cc.binary_link_command_for(osinfo.basename, options),
-        'test_link_cmd': cc.binary_link_command_for(osinfo.basename, options),
+        'lib_link_cmd': cc.so_link_command_for(osinfo.basename, options) + external_link_cmd(),
+        'cli_link_cmd': cc.binary_link_command_for(osinfo.basename, options) + external_link_cmd(),
+        'test_link_cmd': cc.binary_link_command_for(osinfo.basename, options) + external_link_cmd(),
 
         'link_to': ' '.join([cc.add_lib_option + lib for lib in link_to()] + [cc.add_framework_option + fw for fw in link_to_frameworks()]),
 
@@ -1592,7 +1641,7 @@ def create_template_vars(build_config, options, modules, cc, arch, osinfo):
 
         'target_compiler_defines': make_cpp_macros(cc.defines()),
 
-        'target_cpu_defines': make_cpp_macros(arch.defines(options)),
+        'target_cpu_defines': make_cpp_macros(arch.defines(cc, options)),
 
         'botan_include_dir': build_config.botan_include_dir,
 
@@ -1610,20 +1659,20 @@ def create_template_vars(build_config, options, modules, cc, arch, osinfo):
         'static_suffix': osinfo.static_suffix,
 
         'soname_base': osinfo.soname_pattern_base.format(
-                            version_major = build_config.version_major,
-                            version_minor = build_config.version_minor,
-                            version_patch = build_config.version_patch,
-                            abi_rev       = build_config.version_so_rev),
+            version_major=build_config.version_major,
+            version_minor=build_config.version_minor,
+            version_patch=build_config.version_patch,
+            abi_rev=build_config.version_so_rev),
         'soname_abi': osinfo.soname_pattern_abi.format(
-                            version_major = build_config.version_major,
-                            version_minor = build_config.version_minor,
-                            version_patch = build_config.version_patch,
-                            abi_rev       = build_config.version_so_rev),
+            version_major=build_config.version_major,
+            version_minor=build_config.version_minor,
+            version_patch=build_config.version_patch,
+            abi_rev=build_config.version_so_rev),
         'soname_patch': osinfo.soname_pattern_patch.format(
-                            version_major = build_config.version_major,
-                            version_minor = build_config.version_minor,
-                            version_patch = build_config.version_patch,
-                            abi_rev       = build_config.version_so_rev),
+            version_major=build_config.version_major,
+            version_minor=build_config.version_minor,
+            version_patch=build_config.version_patch,
+            abi_rev=build_config.version_so_rev),
 
         'mod_list': '\n'.join(sorted([m.basename for m in modules])),
 
@@ -1636,7 +1685,7 @@ def create_template_vars(build_config, options, modules, cc, arch, osinfo):
     if options.os == 'darwin' and options.build_shared_lib:
         # In order that these executables work from the build directory,
         # we need to change the install names
-        vars['cli_post_link_cmd']  = 'install_name_tool -change "$(INSTALLED_LIB_DIR)/$(SONAME_ABI)" "@executable_path/$(SONAME_ABI)" $(CLI)'
+        vars['cli_post_link_cmd'] = 'install_name_tool -change "$(INSTALLED_LIB_DIR)/$(SONAME_ABI)" "@executable_path/$(SONAME_ABI)" $(CLI)'
         vars['test_post_link_cmd'] = 'install_name_tool -change "$(INSTALLED_LIB_DIR)/$(SONAME_ABI)" "@executable_path/$(SONAME_ABI)" $(TEST)'
     else:
         vars['cli_post_link_cmd'] = ''
@@ -1649,7 +1698,7 @@ def create_template_vars(build_config, options, modules, cc, arch, osinfo):
                                                                      build_config.pkg_config_file()))
 
         # 'botan' or 'botan-2'. Used in Makefile and install script
-        # This can be made consistent over all platforms in the future    
+        # This can be made consistent over all platforms in the future
         vars['libname'] = 'botan-%d' % (build_config.version_major)
     else:
         if options.with_debug_info:
@@ -1661,17 +1710,17 @@ def create_template_vars(build_config, options, modules, cc, arch, osinfo):
 
     if vars["makefile_style"] == "gmake":
         vars["gmake_commands_in"] = process_template(os.path.join(options.makefile_dir, 'gmake_commands.in'), vars)
-        vars["gmake_dso_in"]      = process_template(os.path.join(options.makefile_dir, 'gmake_dso.in'), vars) \
+        vars["gmake_dso_in"] = process_template(os.path.join(options.makefile_dir, 'gmake_dso.in'), vars) \
                                     if options.build_shared_lib else ''
         vars["gmake_coverage_in"] = process_template(os.path.join(options.makefile_dir, 'gmake_coverage.in'), vars) \
                                     if options.with_coverage_info else ''
 
     return vars
 
-"""
-Determine which modules to load based on options, target, etc
-"""
 def choose_modules_to_use(modules, module_policy, archinfo, ccinfo, options):
+    """
+    Determine which modules to load based on options, target, etc
+    """
 
     for mod in modules.values():
         mod.dependencies_exist(modules)
@@ -1788,7 +1837,7 @@ def choose_modules_to_use(modules, module_policy, archinfo, ccinfo, options):
                         to_load.append(mod)
                         dep_met = True
 
-                if dep_met == False:
+                if not dep_met:
                     dependency_failure = True
                     if modname in to_load:
                         to_load.remove(modname)
@@ -1816,15 +1865,16 @@ def choose_modules_to_use(modules, module_policy, archinfo, ccinfo, options):
         if modules[mod].warning:
             logging.warning('%s: %s' % (mod, modules[mod].warning))
 
-    to_load.sort()
+    # force through set to dedup if required
+    to_load = sorted(list(set(to_load)))
     logging.info('Loading modules %s', ' '.join(to_load))
 
     return to_load
 
-"""
-Choose the link method based on system availablity and user request
-"""
 def choose_link_method(options):
+    """
+    Choose the link method based on system availablity and user request
+    """
 
     req = options.link_method
 
@@ -1850,10 +1900,10 @@ def choose_link_method(options):
     logging.warning('Could not use link method "%s", will copy instead' % (req))
     return 'copy'
 
-"""
-Copy or link the file, depending on what the platform offers
-"""
 def portable_symlink(file_path, target_dir, method):
+    """
+    Copy or link the file, depending on what the platform offers
+    """
 
     if not os.access(file_path, os.R_OK):
         logging.warning('Missing file %s' % (file_path))
@@ -1867,12 +1917,13 @@ def portable_symlink(file_path, target_dir, method):
     elif method == 'copy':
         shutil.copy(file_path, target_dir)
     else:
-        raise Exception('Unknown link method %s' % (method))
+        raise ConfigureError('Unknown link method %s' % (method))
 
-"""
-Generate the amalgamation
-"""
 def generate_amalgamation(build_config, options):
+    """
+    Generate the amalgamation
+    """
+
     def strip_header_goop(header_name, contents):
         header_guard = re.compile('^#define BOTAN_.*_H__$')
 
@@ -1884,7 +1935,7 @@ def generate_amalgamation(build_config, options):
             contents = contents[1:]
 
         if len(contents) == 0:
-            raise Exception("No header guard found in " + header_name)
+            raise ConfigureError("No header guard found in " + header_name)
 
         while contents[0] == '\n':
             contents = contents[1:]
@@ -1896,11 +1947,11 @@ def generate_amalgamation(build_config, options):
 
         return contents
 
-    botan_include_matcher = re.compile('#include <botan/(.*)>$')
-    std_include_matcher = re.compile('^#include <([^/\.]+|stddef.h)>$')
-    any_include_matcher = re.compile('#include <(.*)>$')
+    botan_include_matcher = re.compile(r'#include <botan/(.*)>$')
+    std_include_matcher = re.compile(r'^#include <([^/\.]+|stddef.h)>$')
+    any_include_matcher = re.compile(r'#include <(.*)>$')
 
-    class Amalgamation_Generator:
+    class AmalgamationGenerator:
         def __init__(self, input_list):
 
             self.included_already = set()
@@ -1911,7 +1962,7 @@ def generate_amalgamation(build_config, options):
                 try:
                     contents = strip_header_goop(f, open(f).readlines())
                     self.file_contents[os.path.basename(f)] = contents
-                except Exception as e:
+                except IOError as e:
                     logging.error('Error processing file %s for amalgamation: %s' % (f, e))
 
             self.contents = ''
@@ -1957,7 +2008,7 @@ def generate_amalgamation(build_config, options):
     botan_h = open(header_name, 'w')
     botan_int_h = open(header_int_name, 'w')
 
-    pub_header_amalag = Amalgamation_Generator(build_config.public_headers)
+    pub_header_amalag = AmalgamationGenerator(build_config.public_headers)
 
     amalg_header = """/*
 * Botan %s Amalgamation
@@ -1979,7 +2030,7 @@ def generate_amalgamation(build_config, options):
     botan_h.write(pub_header_amalag.contents)
     botan_h.write("\n#endif\n")
 
-    internal_headers = Amalgamation_Generator([s for s in build_config.internal_headers])
+    internal_headers = AmalgamationGenerator([s for s in build_config.internal_headers])
 
     botan_int_h.write("""
 #ifndef BOTAN_AMALGAMATION_INTERNAL_H__
@@ -1995,7 +2046,7 @@ def generate_amalgamation(build_config, options):
     botan_amalgs_fs = []
 
     def open_amalg_file(tgt):
-        fsname = '%s%s.cpp' % (amalg_basename, '_' + tgt if tgt else '' )
+        fsname = '%s%s.cpp' % (amalg_basename, '_' + tgt if tgt else '')
         botan_amalgs_fs.append(fsname)
         logging.info('Writing amalgamation source to %s' % (fsname))
         f = open(fsname, 'w')
@@ -2055,10 +2106,10 @@ def generate_amalgamation(build_config, options):
 
     return botan_amalgs_fs
 
-"""
-Test for the existence of a program
-"""
 def have_program(program):
+    """
+    Test for the existence of a program
+    """
 
     def exe_test(path, program):
         exe_file = os.path.join(path, program)
@@ -2079,10 +2130,11 @@ def have_program(program):
     logging.debug('Program %s not found' % (program))
     return False
 
-"""
-Main driver
-"""
-def main(argv = None):
+def main(argv=None):
+    """
+    Main driver
+    """
+
     if argv is None:
         argv = sys.argv
 
@@ -2116,7 +2168,7 @@ def main(argv = None):
         platform.system(), platform.machine(), platform.processor()))
 
     if options.os == "java":
-        raise Exception("Jython detected: need --os and --cpu to set target")
+        raise ConfigureError("Jython detected: need --os and --cpu to set target")
 
     options.base_dir = os.path.dirname(argv[0])
     options.src_dir = os.path.join(options.base_dir, 'src')
@@ -2126,7 +2178,7 @@ def main(argv = None):
     options.makefile_dir = os.path.join(options.build_data, 'makefile')
 
     def find_files_named(desired_name, in_path):
-        for (dirpath, dirnames, filenames) in os.walk(in_path):
+        for (dirpath, _, filenames) in os.walk(in_path):
             if desired_name in filenames:
                 yield os.path.join(dirpath, desired_name)
 
@@ -2145,13 +2197,14 @@ def main(argv = None):
         if len(info) == 0:
             logging.warning('Failed to load any %s files' % (descr))
         else:
-            logging.debug('Loaded %d %s files (%s)' % (len(info), descr, ' '.join(sorted(map(str, info)))))
+            infotxt_basenames = ' '.join(sorted([key for key in info]))
+            logging.debug('Loaded %d %s files (%s)' % (len(info), descr, infotxt_basenames))
 
         return info
 
     info_arch = load_build_data('CPU info', 'arch', ArchInfo)
-    info_os   = load_build_data('OS info', 'os', OsInfo)
-    info_cc   = load_build_data('compiler info', 'cc', CompilerInfo)
+    info_os = load_build_data('OS info', 'os', OsInfo)
+    info_cc = load_build_data('compiler info', 'cc', CompilerInfo)
 
     for mod in modules.values():
         mod.cross_check(info_arch, info_os, info_cc)
@@ -2164,7 +2217,7 @@ def main(argv = None):
     logging.debug('Known CPU names: ' + ' '.join(
         sorted(flatten([[ainfo.basename] + \
                         ainfo.aliases + \
-                        [x for (x,_) in ainfo.all_submodels()]
+                        [x for (x, _) in ainfo.all_submodels()]
                         for ainfo in info_arch.values()]))))
 
     if options.list_modules:
@@ -2216,21 +2269,21 @@ def main(argv = None):
             options.compiler))
 
     if options.compiler not in info_cc:
-        raise Exception('Unknown compiler "%s"; available options: %s' % (
+        raise ConfigureError('Unknown compiler "%s"; available options: %s' % (
             options.compiler, ' '.join(sorted(info_cc.keys()))))
 
     if options.os not in info_os:
 
-        def find_canonical_os_name(os):
-            for (name, info) in info_os.items():
-                if os in info.aliases:
-                    return name
-            return os # not found
+        def find_canonical_os_name(os_name_variant):
+            for (canonical_os_name, info) in info_os.items():
+                if os_name_variant in info.aliases:
+                    return canonical_os_name
+            return os_name_variant # not found
 
         options.os = find_canonical_os_name(options.os)
 
         if options.os not in info_os:
-            raise Exception('Unknown OS "%s"; available options: %s' % (
+            raise ConfigureError('Unknown OS "%s"; available options: %s' % (
                 options.os, ' '.join(sorted(info_os.keys()))))
 
     if options.cpu is None:
@@ -2271,13 +2324,13 @@ def main(argv = None):
             options.with_sphinx = True
 
     if options.gen_amalgamation:
-        raise Exception("--gen-amalgamation was removed. Migrate to --amalgamation.")
+        raise ConfigureError("--gen-amalgamation was removed. Migrate to --amalgamation.")
 
     if options.via_amalgamation:
-        raise Exception("--via-amalgamation was removed. Use --amalgamation instead.")
+        raise ConfigureError("--via-amalgamation was removed. Use --amalgamation instead.")
 
     if options.build_shared_lib and not osinfo.building_shared_supported:
-        logging.warning('Shared libs not supported on %s, disabling shared lib support' % (self.infofile))
+        logging.warning('Shared libs not supported on %s, disabling shared lib support' % (osinfo.basename))
         options.build_shared_lib = False
 
     loaded_mods = choose_modules_to_use(modules, module_policy, arch, cc, options)
@@ -2308,7 +2361,7 @@ def main(argv = None):
             except OSError:
                 time.sleep(0.1)
 
-        # Final attempt, pass any Exceptions up to caller.
+        # Final attempt, pass any exceptions up to caller.
         shutil.rmtree(path)
 
     # Workaround for Windows systems where antivirus is enabled GH #353
@@ -2323,8 +2376,8 @@ def main(argv = None):
                 else:
                     time.sleep(0.1)
 
-        # Final attempt, pass any Exceptions up to caller.
-        os.makedirs(dir)
+        # Final attempt, pass any exceptions up to caller.
+        os.makedirs(directory)
 
     try:
         if options.clean_build_tree:
@@ -2333,12 +2386,12 @@ def main(argv = None):
         if e.errno != errno.ENOENT:
             logging.error('Problem while removing build dir: %s' % (e))
 
-    for dir in build_config.build_dirs:
+    for build_dir in build_config.build_dirs:
         try:
-            robust_makedirs(dir)
+            robust_makedirs(build_dir)
         except OSError as e:
             if e.errno != errno.EEXIST:
-                logging.error('Error while creating "%s": %s' % (dir, e))
+                logging.error('Error while creating "%s": %s' % (build_dir, e))
 
     def write_template(sink, template):
         try:
@@ -2363,15 +2416,15 @@ def main(argv = None):
 
     link_method = choose_link_method(options)
 
-    def link_headers(headers, type, dir):
-        logging.debug('Linking %d %s header files in %s' % (len(headers), type, dir))
+    def link_headers(headers, visibility, directory):
+        logging.debug('Linking %d %s header files in %s' % (len(headers), visibility, directory))
 
         for header_file in headers:
             try:
-                portable_symlink(header_file, dir, link_method)
+                portable_symlink(header_file, directory, link_method)
             except OSError as e:
                 if e.errno != errno.EEXIST:
-                    raise Exception('Error linking %s into %s: %s' % (header_file, dir, e))
+                    raise ConfigureError('Error linking %s into %s: %s' % (header_file, directory, e))
 
     link_headers(build_config.public_headers, 'public',
                  build_config.botan_include_dir)
@@ -2391,7 +2444,7 @@ def main(argv = None):
         gen_makefile_lists(template_vars, build_config, options, using_mods, cc, arch, osinfo)
 
     if options.with_bakefile:
-        gen_bakefile(build_config, options)
+        gen_bakefile(build_config, options, template_vars['link_to'])
 
     write_template(template_vars['makefile_path'], makefile_template)
 
@@ -2412,8 +2465,10 @@ def main(argv = None):
 if __name__ == '__main__':
     try:
         main()
-    except Exception as e:
-        import traceback
+    except ConfigureError as e:
+        logging.debug(traceback.format_exc())
+        logging.error(e)
+    except Exception as e: # pylint: disable=broad-except
         logging.debug(traceback.format_exc())
         logging.error(e)
     sys.exit(0)

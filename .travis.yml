@@ -24,6 +24,7 @@ env:
 
   matrix:
     - BUILD_MODE="docs"
+    - BUILD_MODE="lint"
     - BUILD_MODE="mini-shared"
     - BUILD_MODE="mini-static"
     - BUILD_MODE="shared"
@@ -45,13 +46,15 @@ matrix:
   allow_failures:
     - os: linux
       env: BUILD_MODE="cross-win32"
+    - os: linux
+      env: BUILD_MODE="lint"
 
   exclude:
     # Skip GCC on OS X entirely
     - os: osx
       compiler: gcc
 
-    # Run docs, bsi, nist, coverage, valgrind, sonarqube, sanitizer,
+    # Run docs, lint, bsi, nist, coverage, valgrind, sonarqube, sanitizer,
     # minimized and non-ARM cross builds on Linux/gcc only. The
     # sanitizer builds under Clang run the tests very slowly and cause
     # CI timeouts.
@@ -60,6 +63,8 @@ matrix:
       env: BUILD_MODE="bsi"
     - compiler: clang
       env: BUILD_MODE="nist"
+    - compiler: clang
+      env: BUILD_MODE="lint"
     - compiler: clang
       env: BUILD_MODE="docs"
     - compiler: clang
@@ -93,7 +98,7 @@ install:
   - ./src/scripts/ci/travis/install.sh
 
 script:
-  - if [ "${COVERITY_SCAN_BRANCH}" != 1 ]; then ./src/scripts/ci/travis/build.sh ; fi
+  - if [ "${COVERITY_SCAN_BRANCH}" != 1 ]; then ./src/scripts/ci/travis/main.sh ; fi
 
 after_success:
   - ./src/scripts/ci/travis/after_success.sh
@@ -121,7 +126,7 @@ addons:
     project:
       name: "randombit/botan"
     notification_email: jack@randombit.net
-    build_command_prepend: "./configure.py --no-optimizations --with-zlib --with-pkcs11"
+    build_command_prepend: "./configure.py --no-optimizations --with-zlib"
     build_command: "make -j2"
     branch_pattern: coverity_scan
 
