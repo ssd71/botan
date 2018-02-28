@@ -8,6 +8,7 @@
 */
 
 #include <botan/ecdh.h>
+#include <botan/numthry.h>
 #include <botan/internal/pk_ops_impl.h>
 
 #if defined(BOTAN_HAS_OPENSSL)
@@ -16,14 +17,12 @@
 
 namespace Botan {
 
-ECDH_PublicKey::ECDH_PublicKey() {}
-
 namespace {
 
 /**
 * ECDH operation
 */
-class ECDH_KA_Operation : public PK_Ops::Key_Agreement_with_KDF
+class ECDH_KA_Operation final : public PK_Ops::Key_Agreement_with_KDF
    {
    public:
 

@@ -2,21 +2,12 @@ macro_name PORTLAND_GROUP
 
 binary_name pgCC
 
-output_to_option "-o "
-add_include_dir_option -I
-add_lib_dir_option -L
-add_lib_option -l
-
-compile_flags "-c"
-debug_info_flags "-g"
 optimization_flags "-fast -Minline"
 shared_flags "-fPIC"
 
-makefile_style gmake
-
 <so_link_commands>
-linux   -> "$(CXX) -shared -fPIC -Wl,-soname,$(SONAME_ABI)"
-solaris -> "$(CXX) -G -fPIC -Wl,-h,$(SONAME_ABI)"
+linux   -> "$(CXX) -shared -fPIC -Wl,-soname,{soname_abi}"
+solaris -> "$(CXX) -G -fPIC -Wl,-h,{soname_abi}"
 </so_link_commands>
 
 <mach_opt>

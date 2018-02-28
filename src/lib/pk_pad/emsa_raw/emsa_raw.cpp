@@ -6,8 +6,16 @@
 */
 
 #include <botan/emsa_raw.h>
+#include <botan/exceptn.h>
 
 namespace Botan {
+
+std::string EMSA_Raw::name() const
+   {
+   if(m_expected_size > 0)
+      return "Raw(" + std::to_string(m_expected_size) + ")";
+   return "Raw";
+   }
 
 /*
 * EMSA-Raw Encode Operation
@@ -22,6 +30,12 @@ void EMSA_Raw::update(const uint8_t input[], size_t length)
 */
 secure_vector<uint8_t> EMSA_Raw::raw_data()
    {
+   if(m_expected_size && m_message.size() != m_expected_size)
+      throw Invalid_Argument("EMSA_Raw was configured to use a " +
+                             std::to_string(m_expected_size) +
+                             " byte hash but instead was used for a " +
+                             std::to_string(m_message.size()) + " hash");
+
    secure_vector<uint8_t> output;
    std::swap(m_message, output);
    return output;
@@ -30,10 +44,17 @@ secure_vector<uint8_t> EMSA_Raw::raw_data()
 /*
 * EMSA-Raw Encode Operation
 */
-secure_vector<uint8_t> EMSA_Raw::encoding_of(const secure_vector<uint8_t>& msg,
-                                         size_t,
-                                         RandomNumberGenerator&)
+secure_vector<uint8_t>
+EMSA_Raw::encoding_of(const secure_vector<uint8_t>& msg,
+                      size_t,
+                      RandomNumberGenerator&)
    {
+   if(m_expected_size && msg.size() != m_expected_size)
+      throw Invalid_Argument("EMSA_Raw was configured to use a " +
+                             std::to_string(m_expected_size) +
+                             " byte hash but instead was used for a " +
+                             std::to_string(msg.size()) + " hash");
+
    return msg;
    }
 
@@ -44,6 +65,9 @@ bool EMSA_Raw::verify(const secure_vector<uint8_t>& coded,
                       const secure_vector<uint8_t>& raw,
                       size_t)
    {
+   if(m_expected_size && raw.size() != m_expected_size)
+      return false;
+
    if(coded.size() == raw.size())
       return (coded == raw);
 
@@ -59,7 +83,7 @@ bool EMSA_Raw::verify(const secure_vector<uint8_t>& coded,
       if(raw[i])
          same_modulo_leading_zeros = false;
 
-   if(!same_mem(coded.data(), raw.data() + leading_zeros_expected, coded.size()))
+   if(!constant_time_compare(coded.data(), raw.data() + leading_zeros_expected, coded.size()))
       same_modulo_leading_zeros = false;
 
    return same_modulo_leading_zeros;

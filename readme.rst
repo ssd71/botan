@@ -10,7 +10,9 @@ offering the tools necessary to implement a range of practical systems, such as
 TLS/DTLS, PKIX certificate handling, PKCS#11 and TPM hardware support, password
 hashing, and post quantum crypto schemes. In addition to the C++, botan has a
 C89 API specifically designed to be easy to call from other languages. A Python
-binding using ctypes calling the C89 API is included.
+binding using ctypes is included, and several other
+`language bindings <https://github.com/randombit/botan/wiki/Language-Bindings>`_
+are available.
 
 Find the full feature list below.
 
@@ -58,10 +60,6 @@ external build systems, see the manual for details.
     :target: https://ci.appveyor.com/project/randombit/botan/branch/master
     :alt: AppVeyor CI status
 
-.. image:: https://circleci.com/gh/randombit/botan.svg?style=shield
-    :target: https://circleci.com/gh/randombit/botan
-    :alt: CircleCI status
-
 .. image:: https://botan-ci.kullo.net/badge
     :target: https://botan-ci.kullo.net/
     :alt: Kullo CI status
@@ -74,9 +72,9 @@ external build systems, see the manual for details.
     :target: https://scan.coverity.com/projects/624
     :alt: Coverity results
 
-.. image:: https://sonarqube.com/api/badges/gate?key=botan
-    :target: https://sonarqube.com/dashboard/index/botan
-    :alt: Sonarqube analysis
+.. image:: https://sonarcloud.io/api/badges/gate?key=botan
+    :target: https://sonarcloud.io/dashboard/index/botan
+    :alt: Sonarcloud analysis
 
 .. image:: https://bestpractices.coreinfrastructure.org/projects/531/badge
     :target: https://bestpractices.coreinfrastructure.org/projects/531
@@ -95,33 +93,32 @@ All releases are signed with a
         Key fingerprint = 621D AF64 11E1 851C 4CF9  A2E1 6211 EBF1 EFBA DFBC
   uid                  Botan Distribution Key
 
-Some distributions such as Arch, Fedora and Debian include packages
-for Botan. However these are often out of date; using the latest
-source release is recommended.
+Some `distributions <https://github.com/randombit/botan/wiki/Distros>`_
+such as Arch, Fedora and Debian include packages for Botan. However
+these are often out of date; using the latest source release is recommended.
 
 Current Stable Release
 ----------------------------------------
 
 Version 2 requires a C++11 compiler; GCC 4.8 and later, Clang 3.5 and
-later, and MSVC 2015 are regularly tested.
+later, and MSVC 2015/2017 are regularly tested.
 
 The latest 2.x release is
-`2.0.1 <https://botan.randombit.net/releases/Botan-2.0.1.tgz>`_
-`(sig) <https://botan.randombit.net/releases/Botan-2.0.1.tgz.asc>`_
-released on 2017-01-09
+`2.4.0 <https://botan.randombit.net/releases/Botan-2.4.0.tgz>`_
+`(sig) <https://botan.randombit.net/releases/Botan-2.4.0.tgz.asc>`_
+released on 2018-01-08
 
-Old Stable Release
+Old Release
 ----------------------------------------
 
-The 1.10 branch is the last version of the library written in C++98 and is still
-the most commonly packaged version. It is no longer supported except for
-critical security updates (with all support ending on 2018-1-1), and the
-developers do not recommend its use anymore.
+The 1.10 branch is the last version of the library written in C++98. It is no
+longer supported except for critical security updates (with all support ending
+in 2018), and the developers do not recommend its use anymore.
 
 The latest 1.10 release is
-`1.10.15 <https://botan.randombit.net/releases/Botan-1.10.15.tgz>`_
-`(sig) <https://botan.randombit.net/releases/Botan-1.10.15.tgz.asc>`_
-released on 2017-01-12
+`1.10.17 <https://botan.randombit.net/releases/Botan-1.10.17.tgz>`_
+`(sig) <https://botan.randombit.net/releases/Botan-1.10.17.tgz.asc>`_
+released on 2017-10-02
 
 Find Enclosed
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -152,7 +149,7 @@ Public Key Cryptography
 
 * RSA signatures and encryption
 * DH and ECDH key agreement
-* Signature schemes ECDSA, DSA, ECGDSA, ECKCDSA, and GOST 34.10-2001
+* Signature schemes ECDSA, DSA, Ed25519, ECGDSA, ECKCDSA, SM2, and GOST 34.10-2001
 * Post-quantum signature scheme XMSS
 * Post-quantum key agreement schemes McEliece and NewHope
 * ElGamal encryption
@@ -163,12 +160,12 @@ Ciphers, hashes, MACs, and checksums
 
 * Authenticated cipher modes EAX, OCB, GCM, SIV, CCM, and ChaCha20Poly1305
 * Cipher modes CTR, CBC, XTS, CFB, and OFB
-* Block ciphers AES, Serpent, Blowfish, Twofish, Threefish-512,
-  DES/3DES, Noekeon, IDEA, CAST-128, XTEA, SEED, KASUMI, GOST 28147,
-  MISTY1, Lion, CAST-256
+* Block ciphers AES, ARIA, Blowfish, Camellia, CAST-128, CAST-256,
+  DES/3DES, GOST 28147, IDEA, KASUMI, Lion, MISTY1, Noekeon, SEED,
+  Serpent, SHACAL2, SM4, Threefish-512, Twofish, XTEA
 * Stream ciphers ChaCha20, Salsa20/XSalsa20, SHAKE-128, and RC4
 * Hash functions SHA-1, SHA-2, SHA-3, RIPEMD-160, Skein-512,
-  BLAKE2b, Tiger, Whirlpool, GOST 34.11, MD5, MD4
+  BLAKE2b, SM3, Tiger, Whirlpool, GOST 34.11, MD5, MD4
 * Hash function combiners Parallel and Comb4P
 * Authentication codes HMAC, CMAC, Poly1305, SipHash, GMAC, CBC-MAC, X9.19 DES-MAC
 * Non-cryptographic checksums Adler32, CRC24, and CRC32
@@ -184,7 +181,8 @@ Other Useful Things
 * PBKDF2 password based key derivation
 * Password hashing function bcrypt and passhash9 (custom PBKDF scheme)
 * SRP-6a password authenticated key exchange
-* Key derivation functions including HKDF, KDF2, SP 800-108, SP 800-56C
+* Key derivation functions including HKDF, KDF2, SP 800-108, SP 800-56A, SP 800-56C
+* HOTP and TOTP algorithms
 * Format preserving encryption scheme FE1
 * Threshold secret sharing
 * RFC 3394 AES key wrap

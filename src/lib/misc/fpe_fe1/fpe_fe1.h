@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_FPE_FE1_H__
-#define BOTAN_FPE_FE1_H__
+#ifndef BOTAN_FPE_FE1_H_
+#define BOTAN_FPE_FE1_H_
 
 #include <botan/bigint.h>
 #include <botan/symkey.h>
@@ -18,7 +18,7 @@ namespace FPE {
 /**
 * Format Preserving Encryption using the scheme FE1 from the paper
 * "Format-Preserving Encryption" by Bellare, Rogaway, et al
-* (http://eprint.iacr.org/2009/251)
+* (https://eprint.iacr.org/2009/251)
 *
 * Encrypt X from and onto the group Z_n using key and tweak
 * @param n the modulus
@@ -26,7 +26,7 @@ namespace FPE {
 * @param key a random key
 * @param tweak will modify the ciphertext (think of as an IV)
 */
-BigInt BOTAN_DLL fe1_encrypt(const BigInt& n, const BigInt& X,
+BigInt BOTAN_PUBLIC_API(2,0) fe1_encrypt(const BigInt& n, const BigInt& X,
                              const SymmetricKey& key,
                              const std::vector<uint8_t>& tweak);
 
@@ -37,7 +37,7 @@ BigInt BOTAN_DLL fe1_encrypt(const BigInt& n, const BigInt& X,
 * @param key is the key used for encryption
 * @param tweak the same tweak used for encryption
 */
-BigInt BOTAN_DLL fe1_decrypt(const BigInt& n, const BigInt& X,
+BigInt BOTAN_PUBLIC_API(2,0) fe1_decrypt(const BigInt& n, const BigInt& X,
                              const SymmetricKey& key,
                              const std::vector<uint8_t>& tweak);
 

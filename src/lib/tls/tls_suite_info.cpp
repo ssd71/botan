@@ -2,8 +2,8 @@
 * TLS cipher suite information
 *
 * This file was automatically generated from the IANA assignments
-* (tls-parameters.txt hash 67a567fcf1ac67cb8cfc4af96c20c3efb05c1fc1)
-* by ./src/scripts/tls_suite_info.py on 2016-12-30
+* (tls-parameters.txt hash ac96406c0080f669ca9442b0f5efcb31549ecb2e)
+* by ./src/scripts/tls_suite_info.py on 2017-11-03
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -116,6 +116,22 @@ const std::vector<Ciphersuite>& Ciphersuite::all_known_ciphersuites()
       Ciphersuite(0xC036, "ECDHE_PSK_WITH_AES_256_CBC_SHA", "", "ECDHE_PSK", "AES-256", 32, 16, 0, "SHA-1", 20, ""),
       Ciphersuite(0xC037, "ECDHE_PSK_WITH_AES_128_CBC_SHA256", "", "ECDHE_PSK", "AES-128", 16, 16, 0, "SHA-256", 32, ""),
       Ciphersuite(0xC038, "ECDHE_PSK_WITH_AES_256_CBC_SHA384", "", "ECDHE_PSK", "AES-256", 32, 16, 0, "SHA-384", 48, ""),
+      Ciphersuite(0xC050, "RSA_WITH_ARIA_128_GCM_SHA256", "RSA", "RSA", "ARIA-128/GCM", 16, 4, 8, "AEAD", 0, "SHA-256"),
+      Ciphersuite(0xC051, "RSA_WITH_ARIA_256_GCM_SHA384", "RSA", "RSA", "ARIA-256/GCM", 32, 4, 8, "AEAD", 0, "SHA-384"),
+      Ciphersuite(0xC052, "DHE_RSA_WITH_ARIA_128_GCM_SHA256", "RSA", "DH", "ARIA-128/GCM", 16, 4, 8, "AEAD", 0, "SHA-256"),
+      Ciphersuite(0xC053, "DHE_RSA_WITH_ARIA_256_GCM_SHA384", "RSA", "DH", "ARIA-256/GCM", 32, 4, 8, "AEAD", 0, "SHA-384"),
+      Ciphersuite(0xC056, "DHE_DSS_WITH_ARIA_128_GCM_SHA256", "DSA", "DH", "ARIA-128/GCM", 16, 4, 8, "AEAD", 0, "SHA-256"),
+      Ciphersuite(0xC057, "DHE_DSS_WITH_ARIA_256_GCM_SHA384", "DSA", "DH", "ARIA-256/GCM", 32, 4, 8, "AEAD", 0, "SHA-384"),
+      Ciphersuite(0xC05A, "DH_anon_WITH_ARIA_128_GCM_SHA256", "", "DH", "ARIA-128/GCM", 16, 4, 8, "AEAD", 0, "SHA-256"),
+      Ciphersuite(0xC05B, "DH_anon_WITH_ARIA_256_GCM_SHA384", "", "DH", "ARIA-256/GCM", 32, 4, 8, "AEAD", 0, "SHA-384"),
+      Ciphersuite(0xC05C, "ECDHE_ECDSA_WITH_ARIA_128_GCM_SHA256", "ECDSA", "ECDH", "ARIA-128/GCM", 16, 4, 8, "AEAD", 0, "SHA-256"),
+      Ciphersuite(0xC05D, "ECDHE_ECDSA_WITH_ARIA_256_GCM_SHA384", "ECDSA", "ECDH", "ARIA-256/GCM", 32, 4, 8, "AEAD", 0, "SHA-384"),
+      Ciphersuite(0xC060, "ECDHE_RSA_WITH_ARIA_128_GCM_SHA256", "RSA", "ECDH", "ARIA-128/GCM", 16, 4, 8, "AEAD", 0, "SHA-256"),
+      Ciphersuite(0xC061, "ECDHE_RSA_WITH_ARIA_256_GCM_SHA384", "RSA", "ECDH", "ARIA-256/GCM", 32, 4, 8, "AEAD", 0, "SHA-384"),
+      Ciphersuite(0xC06A, "PSK_WITH_ARIA_128_GCM_SHA256", "", "PSK", "ARIA-128/GCM", 16, 4, 8, "AEAD", 0, "SHA-256"),
+      Ciphersuite(0xC06B, "PSK_WITH_ARIA_256_GCM_SHA384", "", "PSK", "ARIA-256/GCM", 32, 4, 8, "AEAD", 0, "SHA-384"),
+      Ciphersuite(0xC06C, "DHE_PSK_WITH_ARIA_128_GCM_SHA256", "", "DHE_PSK", "ARIA-128/GCM", 16, 4, 8, "AEAD", 0, "SHA-256"),
+      Ciphersuite(0xC06D, "DHE_PSK_WITH_ARIA_256_GCM_SHA384", "", "DHE_PSK", "ARIA-256/GCM", 32, 4, 8, "AEAD", 0, "SHA-384"),
       Ciphersuite(0xC072, "ECDHE_ECDSA_WITH_CAMELLIA_128_CBC_SHA256", "ECDSA", "ECDH", "Camellia-128", 16, 16, 0, "SHA-256", 32, ""),
       Ciphersuite(0xC073, "ECDHE_ECDSA_WITH_CAMELLIA_256_CBC_SHA384", "ECDSA", "ECDH", "Camellia-256", 32, 16, 0, "SHA-384", 48, ""),
       Ciphersuite(0xC076, "ECDHE_RSA_WITH_CAMELLIA_128_CBC_SHA256", "RSA", "ECDH", "Camellia-128", 16, 16, 0, "SHA-256", 32, ""),
@@ -171,6 +187,10 @@ const std::vector<Ciphersuite>& Ciphersuite::all_known_ciphersuites()
       Ciphersuite(0xCCAB, "PSK_WITH_CHACHA20_POLY1305_SHA256", "", "PSK", "ChaCha20Poly1305", 32, 12, 0, "AEAD", 0, "SHA-256"),
       Ciphersuite(0xCCAC, "ECDHE_PSK_WITH_CHACHA20_POLY1305_SHA256", "", "ECDHE_PSK", "ChaCha20Poly1305", 32, 12, 0, "AEAD", 0, "SHA-256"),
       Ciphersuite(0xCCAD, "DHE_PSK_WITH_CHACHA20_POLY1305_SHA256", "", "DHE_PSK", "ChaCha20Poly1305", 32, 12, 0, "AEAD", 0, "SHA-256"),
+      Ciphersuite(0xD001, "ECDHE_PSK_WITH_AES_128_GCM_SHA256", "", "ECDHE_PSK", "AES-128/GCM", 16, 4, 8, "AEAD", 0, "SHA-256"),
+      Ciphersuite(0xD002, "ECDHE_PSK_WITH_AES_256_GCM_SHA384", "", "ECDHE_PSK", "AES-256/GCM", 32, 4, 8, "AEAD", 0, "SHA-384"),
+      Ciphersuite(0xD003, "ECDHE_PSK_WITH_AES_128_CCM_8_SHA256", "", "ECDHE_PSK", "AES-128/CCM(8)", 16, 4, 8, "AEAD", 0, "SHA-256"),
+      Ciphersuite(0xD005, "ECDHE_PSK_WITH_AES_128_CCM_SHA256", "", "ECDHE_PSK", "AES-128/CCM", 16, 4, 8, "AEAD", 0, "SHA-256"),
       Ciphersuite(0xFFC0, "DHE_RSA_WITH_AES_128_OCB_SHA256", "RSA", "DH", "AES-128/OCB(12)", 16, 12, 0, "AEAD", 0, "SHA-256"),
       Ciphersuite(0xFFC1, "DHE_RSA_WITH_AES_256_OCB_SHA256", "RSA", "DH", "AES-256/OCB(12)", 32, 12, 0, "AEAD", 0, "SHA-256"),
       Ciphersuite(0xFFC2, "ECDHE_RSA_WITH_AES_128_OCB_SHA256", "RSA", "ECDH", "AES-128/OCB(12)", 16, 12, 0, "AEAD", 0, "SHA-256"),

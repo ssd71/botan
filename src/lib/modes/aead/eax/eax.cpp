@@ -9,7 +9,6 @@
 #include <botan/eax.h>
 #include <botan/cmac.h>
 #include <botan/ctr.h>
-#include <botan/parsing.h>
 
 namespace Botan {
 
@@ -67,7 +66,11 @@ std::string EAX_Mode::name() const
 
 size_t EAX_Mode::update_granularity() const
    {
-   return 1;
+   /*
+   * For EAX this actually can be as low as 1 but that causes problems
+   * for applications which use update_granularity as the buffer size.
+   */
+   return m_cipher->parallel_bytes();
    }
 
 Key_Length_Specification EAX_Mode::key_spec() const
@@ -169,7 +172,7 @@ void EAX_Decryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
 
    mac ^= m_ad_mac;
 
-   if(!same_mem(mac.data(), included_tag, tag_size()))
+   if(!constant_time_compare(mac.data(), included_tag, tag_size()))
       throw Integrity_Failure("EAX tag check failed");
 
    buffer.resize(offset + remaining);

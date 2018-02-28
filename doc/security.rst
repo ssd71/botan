@@ -15,6 +15,54 @@ mail please use::
 This key can be found in the file ``doc/pgpkey.txt`` or online at
 https://keybase.io/jacklloyd and on most PGP keyservers.
 
+2017
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* 2017-10-02 (CVE-2017-14737): Potential side channel using cache information
+
+  In the Montgomery exponentiation code, a table of precomputed values
+  is used. An attacker able to analyze which cache lines were accessed
+  (perhaps via an active attack such as Prime+Probe) could recover
+  information about the exponent. Identified in "CacheD: Identifying
+  Cache-Based Timing Channels in Production Software" by Wang, Wang,
+  Liu, Zhang, and Wu (Usenix Security 2017).
+
+  Fixed in 1.10.17 and 2.3.0, all prior versions affected.
+
+* 2017-07-16: Failure to fully zeroize memory before free
+
+  The secure_allocator type attempts to zeroize memory before freeing it. Due to
+  a error sometimes only a portion of the memory would be zeroed, because of a
+  confusion between the number of elements vs the number of bytes that those
+  elements use. So byte vectors would always be fully zeroed (since the two
+  notions result in the same value), but for example with an array of 32-bit
+  integers, only the first 1/4 of the elements would be zeroed before being
+  deallocated. This may result in information leakage, if an attacker can access
+  memory on the heap. Reported by Roman Pozlevich.
+
+  Bug introduced in 1.11.10, fixed in 2.2.0
+
+* 2017-04-04 (CVE-2017-2801): Incorrect comparison in X.509 DN strings
+
+  Botan's implementation of X.509 name comparisons had a flaw which
+  could result in an out of bound memory read while processing a
+  specially formed DN. This could potentially be exploited for
+  information disclosure or denial of service, or result in incorrect
+  validation results. Found independently by Aleksandar Nikolic of
+  Cisco Talos, and OSS-Fuzz automated fuzzing infrastructure.
+
+  Bug introduced in 1.6.0 or earlier, fixed in 2.1.0 and 1.10.16
+
+* 2017-03-23 (CVE-2017-7252): Incorrect bcrypt computation
+
+  Botan's implementation of bcrypt password hashing scheme truncated long
+  passwords at 56 characters, instead of at bcrypt's standard 72 characters
+  limit. Passwords with lengths between these two bounds could be cracked more
+  easily than should be the case due to the final password bytes being ignored.
+  Found and reported by Solar Designer.
+
+  Bug introduced in 1.11.0, fixed in 2.1.0.
+
 2016
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

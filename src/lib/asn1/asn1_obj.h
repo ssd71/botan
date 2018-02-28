@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_ASN1_H__
-#define BOTAN_ASN1_H__
+#ifndef BOTAN_ASN1_H_
+#define BOTAN_ASN1_H_
 
 #include <botan/secmem.h>
 #include <botan/exceptn.h>
@@ -19,7 +19,7 @@ class DER_Encoder;
 /**
 * ASN.1 Type and Class Tags
 */
-enum ASN1_Tag {
+enum ASN1_Tag : uint32_t {
    UNIVERSAL        = 0x00,
    APPLICATION      = 0x40,
    CONTEXT_SPECIFIC = 0x80,
@@ -45,6 +45,7 @@ enum ASN1_Tag {
    T61_STRING       = 0x14,
    IA5_STRING       = 0x16,
    VISIBLE_STRING   = 0x1A,
+   UNIVERSAL_STRING = 0x1C,
    BMP_STRING       = 0x1E,
 
    UTC_TIME                = 0x17,
@@ -55,10 +56,12 @@ enum ASN1_Tag {
    DIRECTORY_STRING = 0xFF01
 };
 
+std::string BOTAN_DLL asn1_tag_to_string(ASN1_Tag type);
+
 /**
 * Basic ASN.1 Object Interface
 */
-class BOTAN_DLL ASN1_Object
+class BOTAN_PUBLIC_API(2,0) ASN1_Object
    {
    public:
       /**
@@ -73,16 +76,19 @@ class BOTAN_DLL ASN1_Object
       */
       virtual void decode_from(BER_Decoder& from) = 0;
 
-      virtual ~ASN1_Object() {}
+      ASN1_Object() = default;
+      ASN1_Object(const ASN1_Object&) = default;
+      ASN1_Object & operator=(const ASN1_Object&) = default;
+      virtual ~ASN1_Object() = default;
    };
 
 /**
 * BER Encoded Object
 */
-class BOTAN_DLL BER_Object
+class BOTAN_PUBLIC_API(2,0) BER_Object final
    {
    public:
-      void assert_is_a(ASN1_Tag, ASN1_Tag);
+      void assert_is_a(ASN1_Tag type_tag, ASN1_Tag class_tag) const;
 
       // public member variable:
       ASN1_Tag type_tag, class_tag;
@@ -112,18 +118,20 @@ bool maybe_BER(DataSource& src);
 /**
 * General BER Decoding Error Exception
 */
-struct BOTAN_DLL BER_Decoding_Error : public Decoding_Error
+class BOTAN_PUBLIC_API(2,0) BER_Decoding_Error : public Decoding_Error
    {
-   explicit BER_Decoding_Error(const std::string&);
+   public:
+      explicit BER_Decoding_Error(const std::string&);
    };
 
 /**
 * Exception For Incorrect BER Taggings
 */
-struct BOTAN_DLL BER_Bad_Tag : public BER_Decoding_Error
+class BOTAN_PUBLIC_API(2,0) BER_Bad_Tag final : public BER_Decoding_Error
    {
-   BER_Bad_Tag(const std::string& msg, ASN1_Tag tag);
-   BER_Bad_Tag(const std::string& msg, ASN1_Tag tag1, ASN1_Tag tag2);
+   public:
+      BER_Bad_Tag(const std::string& msg, ASN1_Tag tag);
+      BER_Bad_Tag(const std::string& msg, ASN1_Tag tag1, ASN1_Tag tag2);
    };
 
 }

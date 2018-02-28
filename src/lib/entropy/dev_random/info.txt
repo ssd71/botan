@@ -1,4 +1,6 @@
-define ENTROPY_SRC_DEV_RANDOM 20131128
+<defines>
+ENTROPY_SRC_DEV_RANDOM -> 20131128
+</defines>
 
 <header:internal>
 dev_random.h
@@ -14,7 +16,6 @@ freebsd
 haiku
 hpux
 hurd
-irix
 linux
 netbsd
 openbsd

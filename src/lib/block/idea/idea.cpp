@@ -26,7 +26,8 @@ inline uint16_t mul(uint16_t x, uint16_t y)
    const uint32_t P_hi = P >> 16;
    const uint32_t P_lo = P & 0xFFFF;
 
-   const uint16_t r_1 = (P_lo - P_hi) + (P_lo < P_hi);
+   const uint16_t carry = (P_lo < P_hi);
+   const uint16_t r_1 = static_cast<uint16_t>((P_lo - P_hi) + carry);
    const uint16_t r_2 = 1 - x - y;
 
    return CT::select(Z_mask, r_1, r_2);
@@ -107,6 +108,18 @@ void idea_op(const uint8_t in[], uint8_t out[], size_t blocks, const uint16_t K[
 
 }
 
+size_t IDEA::parallelism() const
+   {
+#if defined(BOTAN_HAS_IDEA_SSE2)
+   if(CPUID::has_sse2())
+      {
+      return 8;
+      }
+#endif
+
+   return 1;
+   }
+
 std::string IDEA::provider() const
    {
 #if defined(BOTAN_HAS_IDEA_SSE2)
@@ -124,6 +137,8 @@ std::string IDEA::provider() const
 */
 void IDEA::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
+   verify_key_set(m_EK.empty() == false);
+
 #if defined(BOTAN_HAS_IDEA_SSE2)
    if(CPUID::has_sse2())
       {
@@ -145,6 +160,8 @@ void IDEA::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
 */
 void IDEA::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
+   verify_key_set(m_DK.empty() == false);
+
 #if defined(BOTAN_HAS_IDEA_SSE2)
    if(CPUID::has_sse2())
       {

@@ -2,6 +2,7 @@
 * TLS Hello Request and Client Hello Messages
 * (C) 2004-2011,2015,2016 Jack Lloyd
 *     2016 Matthias Gierlings
+*     2017 Harry Reimann, Rohde & Schwarz Cybersecurity
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -9,6 +10,9 @@
 #include <botan/tls_messages.h>
 #include <botan/tls_alert.h>
 #include <botan/tls_exceptn.h>
+#include <botan/rng.h>
+#include <botan/hash.h>
+
 #include <botan/internal/tls_reader.h>
 #include <botan/internal/tls_session_key.h>
 #include <botan/internal/tls_handshake_io.h>
@@ -26,10 +30,14 @@ enum {
 };
 
 std::vector<uint8_t> make_hello_random(RandomNumberGenerator& rng,
-                                    const Policy& policy)
+                                       const Policy& policy)
    {
    std::vector<uint8_t> buf(32);
    rng.randomize(buf.data(), buf.size());
+
+   std::unique_ptr<HashFunction> sha256 = HashFunction::create_or_throw("SHA-256");
+   sha256->update(buf);
+   sha256->final(buf);
 
    if(policy.include_time_in_hello_random())
       {
@@ -91,7 +99,6 @@ Client_Hello::Client_Hello(Handshake_IO& io,
    */
    m_extensions.add(new Extended_Master_Secret);
    m_extensions.add(new Session_Ticket());
-   m_extensions.add(new Certificate_Status_Request);
 
    if(policy.negotiate_encrypt_then_mac())
       m_extensions.add(new Encrypt_then_MAC);
@@ -99,7 +106,8 @@ Client_Hello::Client_Hello(Handshake_IO& io,
    m_extensions.add(new Renegotiation_Extension(reneg_info));
    m_extensions.add(new Server_Name_Indicator(client_settings.hostname()));
 
-   m_extensions.add(new Certificate_Status_Request({}, {}));
+   if(policy.support_cert_status_message())
+      m_extensions.add(new Certificate_Status_Request({}, {}));
 
    if(reneg_info.empty() && !next_protocols.empty())
       m_extensions.add(new Application_Layer_Protocol_Notification(next_protocols));
@@ -120,9 +128,10 @@ Client_Hello::Client_Hello(Handshake_IO& io,
       }
 #endif
 
-   m_extensions.add(new Supported_Elliptic_Curves(policy.allowed_ecc_curves()));
+   Supported_Groups* supported_groups = new Supported_Groups(policy.allowed_groups());
+   m_extensions.add(supported_groups);
 
-   if(!policy.allowed_ecc_curves().empty())
+   if(!supported_groups->curves().empty())
       {
       m_extensions.add(new Supported_Point_Formats(policy.use_ecc_point_compression()));
       }
@@ -165,7 +174,6 @@ Client_Hello::Client_Hello(Handshake_IO& io,
    attempt and upgrade us to a new session with the EMS protection.
    */
    m_extensions.add(new Extended_Master_Secret);
-   m_extensions.add(new Certificate_Status_Request);
 
    m_extensions.add(new Renegotiation_Extension(reneg_info));
    m_extensions.add(new Server_Name_Indicator(session.server_info().hostname()));
@@ -305,6 +313,124 @@ bool Client_Hello::offered_suite(uint16_t ciphersuite) const
          return true;
    return false;
    }
+
+std::vector<std::pair<std::string, std::string>> Client_Hello::supported_algos() const
+   {
+   if(Signature_Algorithms* sigs = m_extensions.get<Signature_Algorithms>())
+      return sigs->supported_signature_algorthms();
+   return std::vector<std::pair<std::string, std::string>>();
+   }
+
+std::set<std::string> Client_Hello::supported_sig_algos() const
+   {
+   std::set<std::string> sig;
+   for(auto&& hash_and_sig : supported_algos())
+      sig.insert(hash_and_sig.second);
+   return sig;
+   }
+
+std::vector<std::string> Client_Hello::supported_ecc_curves() const
+   {
+   if(Supported_Groups* groups = m_extensions.get<Supported_Groups>())
+      return groups->curves();
+   return std::vector<std::string>();
+   }
+
+std::vector<std::string> Client_Hello::supported_dh_groups() const
+   {
+   if(Supported_Groups* groups = m_extensions.get<Supported_Groups>())
+      return groups->dh_groups();
+   return std::vector<std::string>();
+   }
+
+bool Client_Hello::prefers_compressed_ec_points() const
+   {
+   if(Supported_Point_Formats* ecc_formats = m_extensions.get<Supported_Point_Formats>())
+      {
+      return ecc_formats->prefers_compressed();
+      }
+   return false;
+   }
+
+std::string Client_Hello::sni_hostname() const
+   {
+   if(Server_Name_Indicator* sni = m_extensions.get<Server_Name_Indicator>())
+      return sni->host_name();
+   return "";
+   }
+
+#if defined(BOTAN_HAS_SRP6)
+std::string Client_Hello::srp_identifier() const
+   {
+   if(SRP_Identifier* srp = m_extensions.get<SRP_Identifier>())
+      return srp->identifier();
+   return "";
+   }
+#endif
+
+bool Client_Hello::secure_renegotiation() const
+   {
+   return m_extensions.has<Renegotiation_Extension>();
+   }
+
+std::vector<uint8_t> Client_Hello::renegotiation_info() const
+   {
+   if(Renegotiation_Extension* reneg = m_extensions.get<Renegotiation_Extension>())
+      return reneg->renegotiation_info();
+   return std::vector<uint8_t>();
+   }
+
+bool Client_Hello::supports_session_ticket() const
+   {
+   return m_extensions.has<Session_Ticket>();
+   }
+
+std::vector<uint8_t> Client_Hello::session_ticket() const
+   {
+   if(Session_Ticket* ticket = m_extensions.get<Session_Ticket>())
+      return ticket->contents();
+   return std::vector<uint8_t>();
+   }
+
+bool Client_Hello::supports_alpn() const
+   {
+   return m_extensions.has<Application_Layer_Protocol_Notification>();
+   }
+
+bool Client_Hello::supports_extended_master_secret() const
+   {
+   return m_extensions.has<Extended_Master_Secret>();
+   }
+
+bool Client_Hello::supports_cert_status_message() const
+   {
+   return m_extensions.has<Certificate_Status_Request>();
+   }
+
+bool Client_Hello::supports_encrypt_then_mac() const
+   {
+   return m_extensions.has<Encrypt_then_MAC>();
+   }
+
+bool Client_Hello::sent_signature_algorithms() const
+   {
+   return m_extensions.has<Signature_Algorithms>();
+   }
+
+std::vector<std::string> Client_Hello::next_protocols() const
+   {
+   if(auto alpn = m_extensions.get<Application_Layer_Protocol_Notification>())
+      return alpn->protocols();
+   return std::vector<std::string>();
+   }
+
+std::vector<uint16_t> Client_Hello::srtp_profiles() const
+   {
+   if(SRTP_Protection_Profiles* srtp = m_extensions.get<SRTP_Protection_Profiles>())
+      return srtp->profiles();
+   return std::vector<uint16_t>();
+   }
+
 
 }
 

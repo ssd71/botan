@@ -7,12 +7,13 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_ECC_DOMAIN_PARAMETERS_H__
-#define BOTAN_ECC_DOMAIN_PARAMETERS_H__
+#ifndef BOTAN_ECC_DOMAIN_PARAMETERS_H_
+#define BOTAN_ECC_DOMAIN_PARAMETERS_H_
 
 #include <botan/point_gfp.h>
 #include <botan/curve_gfp.h>
 #include <botan/asn1_oid.h>
+#include <set>
 
 namespace Botan {
 
@@ -28,7 +29,7 @@ enum EC_Group_Encoding {
 /**
 * Class representing an elliptic curve
 */
-class BOTAN_DLL EC_Group
+class BOTAN_PUBLIC_API(2,0) EC_Group final
    {
    public:
 
@@ -133,6 +134,11 @@ class BOTAN_DLL EC_Group
       * Return PEM representation of named EC group
       */
       static std::string PEM_for_named_group(const std::string& name);
+
+      /**
+      * Return a set of known named EC groups
+      */
+      static const std::set<std::string>& known_named_groups();
 
    private:
       CurveGFp m_curve;

@@ -1,6 +1,7 @@
 /*
 * TLS Handshaking
 * (C) 2004-2006,2011,2012,2015,2016 Jack Lloyd
+*     2017 Harry Reimann, Rohde & Schwarz Cybersecurity
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -8,7 +9,8 @@
 #include <botan/internal/tls_handshake_state.h>
 #include <botan/internal/tls_record.h>
 #include <botan/tls_messages.h>
-#include <botan/tls_callbacks.h>
+#include <botan/kdf.h>
+#include <sstream>
 
 namespace Botan {
 
@@ -72,7 +74,8 @@ const char* handshake_type_to_string(Handshake_Type type)
          return "invalid";
       }
 
-   throw Internal_Error("Unknown TLS handshake message type " + std::to_string(type));
+   throw TLS_Exception(Alert::UNEXPECTED_MESSAGE,
+                       "Unknown TLS handshake message type " + std::to_string(type));
    }
 
 namespace {
@@ -131,7 +134,8 @@ uint32_t bitmask_for_handshake_type(Handshake_Type type)
          return 0;
       }
 
-   throw Internal_Error("Unknown handshake type " + std::to_string(type));
+   throw TLS_Exception(Alert::UNEXPECTED_MESSAGE,
+                       "Unknown TLS handshake message type " + std::to_string(type));
    }
 
 std::string handshake_mask_to_string(uint32_t mask)
@@ -181,8 +185,6 @@ Handshake_State::Handshake_State(Handshake_IO* io, Callbacks& cb) :
    m_version(m_handshake_io->initial_record_version())
    {
    }
-
-Handshake_State::~Handshake_State() {}
 
 void Handshake_State::note_message(const Handshake_Message& msg)
    {
@@ -374,11 +376,9 @@ KDF* Handshake_State::protocol_specific_prf() const
 namespace {
 
 std::string choose_hash(const std::string& sig_algo,
+                        std::vector<std::pair<std::string, std::string>>& supported_algos,
                         Protocol_Version negotiated_version,
-                        const Policy& policy,
-                        bool for_client_auth,
-                        const Client_Hello* client_hello,
-                        const Certificate_Req* cert_req)
+                        const Policy& policy)
    {
    if(!negotiated_version.supports_negotiable_signature_algorithms())
       {
@@ -394,19 +394,15 @@ std::string choose_hash(const std::string& sig_algo,
       throw Internal_Error("Unknown TLS signature algo " + sig_algo);
       }
 
-   const auto supported_algos = for_client_auth ?
-      cert_req->supported_algos() :
-      client_hello->supported_algos();
-
    if(!supported_algos.empty())
       {
-      const auto hashes = policy.allowed_signature_hashes();
+      const std::vector<std::string> hashes = policy.allowed_signature_hashes();
 
       /*
       * Choose our most preferred hash that the counterparty supports
       * in pairing with the signature algorithm we want to use.
       */
-      for(auto hash : hashes)
+      for(std::string hash : hashes)
          {
          for(auto algo : supported_algos)
             {
@@ -431,16 +427,24 @@ Handshake_State::choose_sig_format(const Private_Key& key,
    {
    const std::string sig_algo = key.algo_name();
 
-   const std::string hash_algo =
-      choose_hash(sig_algo,
-                  this->version(),
-                  policy,
-                  for_client_auth,
-                  client_hello(),
-                  cert_req());
+   std::vector<std::pair<std::string, std::string>> supported_algos =
+      (for_client_auth) ? cert_req()->supported_algos() : client_hello()->supported_algos();
+
+   const std::string hash_algo = choose_hash(sig_algo,
+                                             supported_algos,
+                                             this->version(),
+                                             policy);
 
    if(this->version().supports_negotiable_signature_algorithms())
       {
+      // We skip this check for v1.0 since you're stuck with SHA-1 regardless
+
+      if(!policy.allowed_signature_hash(hash_algo))
+         {
+         throw TLS_Exception(Alert::HANDSHAKE_FAILURE,
+                             "Policy refuses to accept signing with any hash supported by peer");
+         }
+
       hash_algo_out = hash_algo;
       sig_algo_out = sig_algo;
       }

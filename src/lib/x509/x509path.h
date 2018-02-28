@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_X509_CERT_PATH_VALIDATION_H__
-#define BOTAN_X509_CERT_PATH_VALIDATION_H__
+#ifndef BOTAN_X509_CERT_PATH_VALIDATION_H_
+#define BOTAN_X509_CERT_PATH_VALIDATION_H_
 
 #include <botan/cert_status.h>
 #include <botan/x509cert.h>
@@ -31,7 +31,7 @@ typedef std::vector<std::set<Certificate_Status_Code>> CertificatePathStatusCode
 /**
 * Specifies restrictions on the PKIX path validation
 */
-class BOTAN_DLL Path_Validation_Restrictions
+class BOTAN_PUBLIC_API(2,0) Path_Validation_Restrictions final
    {
    public:
       /**
@@ -107,7 +107,7 @@ class BOTAN_DLL Path_Validation_Restrictions
 /**
 * Represents the result of a PKIX path validation
 */
-class BOTAN_DLL Path_Validation_Result
+class BOTAN_PUBLIC_API(2,0) Path_Validation_Result final
    {
    public:
       typedef Certificate_Status_Code Code;
@@ -136,6 +136,11 @@ class BOTAN_DLL Path_Validation_Result
       bool successful_validation() const;
 
       /**
+      * @return true iff no warnings occured during validation
+      */
+      bool no_warnings() const;
+
+      /**
       * @return overall validation result code
       */
       Certificate_Status_Code result() const { return m_overall; }
@@ -145,6 +150,11 @@ class BOTAN_DLL Path_Validation_Result
       */
       const CertificatePathStatusCodes& all_statuses() const
          { return m_all_status; }
+
+      /**
+      * @return the subset of status codes that are warnings
+      */
+      CertificatePathStatusCodes warnings() const;
 
       /**
       * @return string representation of the validation result
@@ -173,13 +183,14 @@ class BOTAN_DLL Path_Validation_Result
 
    private:
       CertificatePathStatusCodes m_all_status;
+      CertificatePathStatusCodes m_warnings;
       std::vector<std::shared_ptr<const X509_Certificate>> m_cert_path;
       Certificate_Status_Code m_overall;
    };
 
 /**
 * PKIX Path Validation
-* @param end_certs certificate chain to validate
+* @param end_certs certificate chain to validate (with end entity certificate in end_certs[0])
 * @param restrictions path validation restrictions
 * @param trusted_roots list of certificate stores that contain trusted certificates
 * @param hostname if not empty, compared against the DNS name in end_certs[0]
@@ -189,7 +200,7 @@ class BOTAN_DLL Path_Validation_Result
 * @param ocsp_resp additional OCSP responses to consider (eg from peer)
 * @return result of the path validation
 */
-Path_Validation_Result BOTAN_DLL x509_path_validate(
+Path_Validation_Result BOTAN_PUBLIC_API(2,0) x509_path_validate(
    const std::vector<X509_Certificate>& end_certs,
    const Path_Validation_Restrictions& restrictions,
    const std::vector<Certificate_Store*>& trusted_roots,
@@ -207,11 +218,11 @@ Path_Validation_Result BOTAN_DLL x509_path_validate(
 * @param hostname if not empty, compared against the DNS name in end_cert
 * @param usage if not set to UNSPECIFIED, compared against the key usage in end_cert
 * @param validation_time what reference time to use for validation
-* @param ocsp_timeout timeoutput for OCSP operations, 0 disables OCSP check
+* @param ocsp_timeout timeout for OCSP operations, 0 disables OCSP check
 * @param ocsp_resp additional OCSP responses to consider (eg from peer)
 * @return result of the path validation
 */
-Path_Validation_Result BOTAN_DLL x509_path_validate(
+Path_Validation_Result BOTAN_PUBLIC_API(2,0) x509_path_validate(
    const X509_Certificate& end_cert,
    const Path_Validation_Restrictions& restrictions,
    const std::vector<Certificate_Store*>& trusted_roots,
@@ -229,11 +240,11 @@ Path_Validation_Result BOTAN_DLL x509_path_validate(
 * @param hostname if not empty, compared against the DNS name in end_cert
 * @param usage if not set to UNSPECIFIED, compared against the key usage in end_cert
 * @param validation_time what reference time to use for validation
-* @param ocsp_timeout timeoutput for OCSP operations, 0 disables OCSP check
+* @param ocsp_timeout timeout for OCSP operations, 0 disables OCSP check
 * @param ocsp_resp additional OCSP responses to consider (eg from peer)
 * @return result of the path validation
 */
-Path_Validation_Result BOTAN_DLL x509_path_validate(
+Path_Validation_Result BOTAN_PUBLIC_API(2,0) x509_path_validate(
    const X509_Certificate& end_cert,
    const Path_Validation_Restrictions& restrictions,
    const Certificate_Store& store,
@@ -251,11 +262,11 @@ Path_Validation_Result BOTAN_DLL x509_path_validate(
 * @param hostname if not empty, compared against the DNS name in end_certs[0]
 * @param usage if not set to UNSPECIFIED, compared against the key usage in end_certs[0]
 * @param validation_time what reference time to use for validation
-* @param ocsp_timeout timeoutput for OCSP operations, 0 disables OCSP check
+* @param ocsp_timeout timeout for OCSP operations, 0 disables OCSP check
 * @param ocsp_resp additional OCSP responses to consider (eg from peer)
 * @return result of the path validation
 */
-Path_Validation_Result BOTAN_DLL x509_path_validate(
+Path_Validation_Result BOTAN_PUBLIC_API(2,0) x509_path_validate(
    const std::vector<X509_Certificate>& end_certs,
    const Path_Validation_Restrictions& restrictions,
    const Certificate_Store& store,
@@ -274,6 +285,13 @@ Path_Validation_Result BOTAN_DLL x509_path_validate(
 */
 namespace PKIX {
 
+Certificate_Status_Code
+build_all_certificate_paths(std::vector<std::vector<std::shared_ptr<const X509_Certificate>>>& cert_paths,
+                            const std::vector<Certificate_Store*>& trusted_certstores,
+                            const std::shared_ptr<const X509_Certificate>& end_entity,
+                            const std::vector<std::shared_ptr<const X509_Certificate>>& end_entity_extra);
+
+
 /**
 * Build certificate path
 * @param cert_path_out output parameter, cert_path will be appended to this vector
@@ -283,7 +301,7 @@ namespace PKIX {
 * @return result of the path building operation (OK or error)
 */
 Certificate_Status_Code
-BOTAN_DLL build_certificate_path(std::vector<std::shared_ptr<const X509_Certificate>>& cert_path_out,
+BOTAN_PUBLIC_API(2,0) build_certificate_path(std::vector<std::shared_ptr<const X509_Certificate>>& cert_path_out,
                                  const std::vector<Certificate_Store*>& trusted_certstores,
                                  const std::shared_ptr<const X509_Certificate>& end_entity,
                                  const std::vector<std::shared_ptr<const X509_Certificate>>& end_entity_extra);
@@ -306,7 +324,7 @@ BOTAN_DLL build_certificate_path(std::vector<std::shared_ptr<const X509_Certific
 * then the result for that certificate is successful. If all results are
 */
 CertificatePathStatusCodes
-BOTAN_DLL check_chain(const std::vector<std::shared_ptr<const X509_Certificate>>& cert_path,
+BOTAN_PUBLIC_API(2,0) check_chain(const std::vector<std::shared_ptr<const X509_Certificate>>& cert_path,
                       std::chrono::system_clock::time_point ref_time,
                       const std::string& hostname,
                       Usage_Type usage,
@@ -323,13 +341,13 @@ BOTAN_DLL check_chain(const std::vector<std::shared_ptr<const X509_Certificate>>
 * @return revocation status
 */
 CertificatePathStatusCodes
-BOTAN_DLL check_ocsp(const std::vector<std::shared_ptr<const X509_Certificate>>& cert_path,
+BOTAN_PUBLIC_API(2,0) check_ocsp(const std::vector<std::shared_ptr<const X509_Certificate>>& cert_path,
                      const std::vector<std::shared_ptr<const OCSP::Response>>& ocsp_responses,
                      const std::vector<Certificate_Store*>& certstores,
                      std::chrono::system_clock::time_point ref_time);
 
 /**
-* Check CRLs for revocation infomration
+* Check CRLs for revocation information
 * @param cert_path path already validated by check_chain
 * @param crls the list of CRLs to check, it is assumed that crls[i] (if not null)
 * is the associated CRL for the subject in cert_path[i].
@@ -338,12 +356,12 @@ BOTAN_DLL check_ocsp(const std::vector<std::shared_ptr<const X509_Certificate>>&
 * @return revocation status
 */
 CertificatePathStatusCodes
-BOTAN_DLL check_crl(const std::vector<std::shared_ptr<const X509_Certificate>>& cert_path,
+BOTAN_PUBLIC_API(2,0) check_crl(const std::vector<std::shared_ptr<const X509_Certificate>>& cert_path,
                     const std::vector<std::shared_ptr<const X509_CRL>>& crls,
                     std::chrono::system_clock::time_point ref_time);
 
 /**
-* Check CRLs for revocation infomration
+* Check CRLs for revocation information
 * @param cert_path path already validated by check_chain
 * @param certstores a list of certificate stores to query for the CRL
 * @param ref_time whatever time you want to perform the validation against
@@ -351,7 +369,7 @@ BOTAN_DLL check_crl(const std::vector<std::shared_ptr<const X509_Certificate>>& 
 * @return revocation status
 */
 CertificatePathStatusCodes
-BOTAN_DLL check_crl(const std::vector<std::shared_ptr<const X509_Certificate>>& cert_path,
+BOTAN_PUBLIC_API(2,0) check_crl(const std::vector<std::shared_ptr<const X509_Certificate>>& cert_path,
                     const std::vector<Certificate_Store*>& certstores,
                     std::chrono::system_clock::time_point ref_time);
 
@@ -372,7 +390,7 @@ BOTAN_DLL check_crl(const std::vector<std::shared_ptr<const X509_Certificate>>& 
 * @return revocation status
 */
 CertificatePathStatusCodes
-BOTAN_DLL check_ocsp_online(const std::vector<std::shared_ptr<const X509_Certificate>>& cert_path,
+BOTAN_PUBLIC_API(2,0) check_ocsp_online(const std::vector<std::shared_ptr<const X509_Certificate>>& cert_path,
                             const std::vector<Certificate_Store*>& trusted_certstores,
                             std::chrono::system_clock::time_point ref_time,
                             std::chrono::milliseconds timeout,
@@ -393,7 +411,7 @@ BOTAN_DLL check_ocsp_online(const std::vector<std::shared_ptr<const X509_Certifi
 * @return revocation status
 */
 CertificatePathStatusCodes
-BOTAN_DLL check_crl_online(const std::vector<std::shared_ptr<const X509_Certificate>>& cert_path,
+BOTAN_PUBLIC_API(2,0) check_crl_online(const std::vector<std::shared_ptr<const X509_Certificate>>& cert_path,
                            const std::vector<Certificate_Store*>& trusted_certstores,
                            Certificate_Store_In_Memory* certstore_to_recv_crls,
                            std::chrono::system_clock::time_point ref_time,
@@ -405,7 +423,7 @@ BOTAN_DLL check_crl_online(const std::vector<std::shared_ptr<const X509_Certific
 * Find overall status (OK, error) of a validation
 * @param cert_status result of merge_revocation_status or check_chain
 */
-Certificate_Status_Code BOTAN_DLL overall_status(const CertificatePathStatusCodes& cert_status);
+Certificate_Status_Code BOTAN_PUBLIC_API(2,0) overall_status(const CertificatePathStatusCodes& cert_status);
 
 /**
 * Merge the results from CRL and/or OCSP checks into chain_status
@@ -415,7 +433,7 @@ Certificate_Status_Code BOTAN_DLL overall_status(const CertificatePathStatusCode
 * @param require_rev_on_end_entity require valid CRL or OCSP on end-entity cert
 * @param require_rev_on_intermediates require valid CRL or OCSP on all intermediate certificates
 */
-void BOTAN_DLL merge_revocation_status(CertificatePathStatusCodes& chain_status,
+void BOTAN_PUBLIC_API(2,0) merge_revocation_status(CertificatePathStatusCodes& chain_status,
                                        const CertificatePathStatusCodes& crl_status,
                                        const CertificatePathStatusCodes& ocsp_status,
                                        bool require_rev_on_end_entity,

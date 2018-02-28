@@ -1,19 +1,14 @@
 /*
  * XMSS Hash
- * (C) 2016 Matthias Gierlings
+ * (C) 2016,2017 Matthias Gierlings
  *
  * Botan is released under the Simplified BSD License (see license.txt)
  **/
 
-#ifndef BOTAN_XMSS_HASH_H__
-#define BOTAN_XMSS_HASH_H__
+#ifndef BOTAN_XMSS_HASH_H_
+#define BOTAN_XMSS_HASH_H_
 
-#include <cstddef>
-#include <string>
-#include <botan/assert.h>
 #include <botan/hash.h>
-#include <botan/secmem.h>
-#include <botan/types.h>
 
 namespace Botan {
 
@@ -21,7 +16,7 @@ namespace Botan {
  * A collection of pseudorandom hash functions required for XMSS and WOTS
  * computations.
  **/
-class XMSS_Hash
+class XMSS_Hash final
    {
    public:
       XMSS_Hash(const std::string& h_func_name);
@@ -55,7 +50,7 @@ class XMSS_Hash
        * @return result The hash calculated using key and data.
        **/
       inline secure_vector<uint8_t> prf(const secure_vector<uint8_t>& key,
-                                     const secure_vector<uint8_t>& data)
+                                        const secure_vector<uint8_t>& data)
          {
          m_hash->update(m_zero_padding);
          m_hash->update(m_id_prf);
@@ -106,9 +101,9 @@ class XMSS_Hash
        * @return hash value of n-bytes length.
        **/
       secure_vector<uint8_t> h_msg(const secure_vector<uint8_t>& randomness,
-                                const secure_vector<uint8_t>& root,
-                                const secure_vector<uint8_t>& index_bytes,
-                                const secure_vector<uint8_t>& data);
+                                   const secure_vector<uint8_t>& root,
+                                   const secure_vector<uint8_t>& index_bytes,
+                                   const secure_vector<uint8_t>& data);
 
       /**
        * Initializes buffered h_msg computation with prefix data.
@@ -144,7 +139,7 @@ class XMSS_Hash
        **/
       secure_vector<uint8_t> h_msg_final();
 
-      size_t output_length() const { return m_output_length; };
+      size_t output_length() const { return m_output_length; }
 
    private:
       static const uint8_t m_id_f = 0x00;
@@ -152,13 +147,13 @@ class XMSS_Hash
       static const uint8_t m_id_hmsg = 0x02;
       static const uint8_t m_id_prf = 0x03;
 
-      const std::string m_hash_func_name;
       std::unique_ptr<HashFunction> m_hash;
       std::unique_ptr<HashFunction> m_msg_hash;
-      size_t m_output_length;
-
       //32 byte id prefixes prepended to the hash input.
       std::vector<uint8_t> m_zero_padding;
+      size_t m_output_length;
+      const std::string m_hash_func_name;
+
    };
 
 }

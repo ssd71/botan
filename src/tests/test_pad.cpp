@@ -14,12 +14,10 @@ namespace Botan_Tests {
 
 #if defined(BOTAN_HAS_CIPHER_MODE_PADDING)
 
-class Cipher_Mode_Padding_Tests : public Text_Based_Test
+class Cipher_Mode_Padding_Tests final : public Text_Based_Test
    {
    public:
-      Cipher_Mode_Padding_Tests() :
-         Text_Based_Test("pad.vec", "In,Blocksize", "Out")
-         {}
+      Cipher_Mode_Padding_Tests() : Text_Based_Test("pad.vec", "In,Blocksize", "Out") {}
 
       Test::Result run_one_test(const std::string& header, const VarMap& vars) override
          {
@@ -32,8 +30,10 @@ class Cipher_Mode_Padding_Tests : public Text_Based_Test
          auto underscore = algo.find('_');
          if(underscore != std::string::npos)
             {
-            if(algo.substr(underscore+1,std::string::npos) != "Invalid")
+            if(algo.substr(underscore + 1, std::string::npos) != "Invalid")
+               {
                throw Test_Error("Unexpected padding header " + header);
+               }
             algo = algo.substr(0, underscore);
             }
 

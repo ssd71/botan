@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_SYMMETRIC_ALGORITHM_H__
-#define BOTAN_SYMMETRIC_ALGORITHM_H__
+#ifndef BOTAN_SYMMETRIC_ALGORITHM_H_
+#define BOTAN_SYMMETRIC_ALGORITHM_H_
 
 #include <botan/key_spec.h>
 #include <botan/exceptn.h>
@@ -18,10 +18,10 @@ namespace Botan {
 /**
 * This class represents a symmetric algorithm object.
 */
-class BOTAN_DLL SymmetricAlgorithm
+class BOTAN_PUBLIC_API(2,0) SymmetricAlgorithm
    {
    public:
-      virtual ~SymmetricAlgorithm() {}
+      virtual ~SymmetricAlgorithm() = default;
 
       /**
       * Reset the state.
@@ -90,6 +90,13 @@ class BOTAN_DLL SymmetricAlgorithm
       * @return the algorithm name
       */
       virtual std::string name() const = 0;
+
+   protected:
+      void verify_key_set(bool cond) const
+         {
+         if(cond == false)
+            throw Key_Not_Set(name());
+         }
 
    private:
       /**

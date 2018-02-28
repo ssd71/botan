@@ -7,11 +7,10 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_TLS_EXTENSIONS_H__
-#define BOTAN_TLS_EXTENSIONS_H__
+#ifndef BOTAN_TLS_EXTENSIONS_H_
+#define BOTAN_TLS_EXTENSIONS_H_
 
 #include <botan/secmem.h>
-#include <botan/tls_magic.h>
 #include <botan/ocsp.h>
 #include <vector>
 #include <string>
@@ -65,7 +64,7 @@ class Extension
       */
       virtual bool empty() const = 0;
 
-      virtual ~Extension() {}
+      virtual ~Extension() = default;
    };
 
 /**
@@ -133,7 +132,7 @@ class Renegotiation_Extension final : public Extension
 
       Handshake_Extension_Type type() const override { return static_type(); }
 
-      Renegotiation_Extension() {}
+      Renegotiation_Extension() = default;
 
       explicit Renegotiation_Extension(const std::vector<uint8_t>& bits) :
          m_reneg_data(bits) {}
@@ -206,7 +205,7 @@ class Session_Ticket final : public Extension
       /**
       * Create empty extension, used by both client and server
       */
-      Session_Ticket() {}
+      Session_Ticket() = default;
 
       /**
       * Extension with ticket, used by client
@@ -226,10 +225,11 @@ class Session_Ticket final : public Extension
       std::vector<uint8_t> m_ticket;
    };
 
+
 /**
-* Supported Elliptic Curves Extension (RFC 4492)
+* Supported Groups Extension (RFC 7919)
 */
-class Supported_Elliptic_Curves final : public Extension
+class Supported_Groups final : public Extension
    {
    public:
       static Handshake_Extension_Type static_type()
@@ -240,20 +240,27 @@ class Supported_Elliptic_Curves final : public Extension
       static std::string curve_id_to_name(uint16_t id);
       static uint16_t name_to_curve_id(const std::string& name);
 
+      static bool is_dh_group( const std::string& group_name );
+
       const std::vector<std::string>& curves() const { return m_curves; }
+      const std::vector<std::string>& dh_groups() const { return m_dh_groups; }
 
       std::vector<uint8_t> serialize() const override;
 
-      explicit Supported_Elliptic_Curves(const std::vector<std::string>& curves) :
-         m_curves(curves) {}
+      explicit Supported_Groups(const std::vector<std::string>& groups);
 
-      Supported_Elliptic_Curves(TLS_Data_Reader& reader,
+      Supported_Groups(TLS_Data_Reader& reader,
                                 uint16_t extension_size);
 
-      bool empty() const override { return m_curves.empty(); }
+      bool empty() const override { return m_groups.empty(); }
    private:
+      std::vector<std::string> m_groups;
       std::vector<std::string> m_curves;
+      std::vector<std::string> m_dh_groups;
    };
+
+// previously Supported Elliptic Curves Extension (RFC 4492)
+using Supported_Elliptic_Curves = Supported_Groups;
 
 /**
 * Supported Point Formats Extension (RFC 4492)
@@ -369,7 +376,7 @@ class Extended_Master_Secret final : public Extension
 
       bool empty() const override { return false; }
 
-      Extended_Master_Secret() {}
+      Extended_Master_Secret() = default;
 
       Extended_Master_Secret(TLS_Data_Reader& reader, uint16_t extension_size);
    };
@@ -389,7 +396,7 @@ class Encrypt_then_MAC final : public Extension
 
       bool empty() const override { return false; }
 
-      Encrypt_then_MAC() {}
+      Encrypt_then_MAC() = default;
 
       Encrypt_then_MAC(TLS_Data_Reader& reader, uint16_t extension_size);
    };
@@ -427,7 +434,7 @@ class Certificate_Status_Request final : public Extension
 /**
 * Represents a block of extensions in a hello message
 */
-class BOTAN_DLL Extensions
+class BOTAN_UNSTABLE_API Extensions final
    {
    public:
       std::set<Handshake_Extension_Type> extension_types() const;
@@ -459,13 +466,13 @@ class BOTAN_DLL Extensions
 
       void deserialize(TLS_Data_Reader& reader);
 
-      Extensions() {}
+      Extensions() = default;
 
       explicit Extensions(TLS_Data_Reader& reader) { deserialize(reader); }
 
    private:
-      Extensions(const Extensions&) {}
-      Extensions& operator=(const Extensions&) { return (*this); }
+      Extensions(const Extensions&) = delete;
+      Extensions& operator=(const Extensions&) = delete;
 
       std::map<Handshake_Extension_Type, std::unique_ptr<Extension>> m_extensions;
    };

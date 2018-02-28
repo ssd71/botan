@@ -104,12 +104,9 @@ See eme_oaep.cpp.
 Modular Exponentiation
 ------------------------
 
-Modular exponentiation uses a fixed window algorithm with Montgomery representation.
-In the current code, information about the exponent is leaked through the
-sequence of memory indexes; we currently rely on randomized blinding at higher
-levels of the cryptographic stack to hide this. A future project would be to
-change this to use either Montgomery ladder or use a side channel silent table
-lookup. See powm_mnt.cpp.
+Modular exponentiation uses a fixed window algorithm with Montgomery
+representation. A side channel silent table lookup is used to access the
+precomputed powers. See powm_mnt.cpp.
 
 The Karatsuba multiplication algorithm has some conditional branches that
 probably expose information through the branch predictor, but probably? does not
@@ -239,8 +236,8 @@ const time 8x bitsliced AES could be integrated fairly easily.
 GCM
 ---------------------
 
-On x86 platforms which support the clmul instruction, GCM support is fast and
-constant time.
+On platforms that support a carryless multiply instruction (recent x86 and ARM),
+GCM is fast and constant time.
 
 On all other platforms, GCM is slow and constant time. It uses a simple bit at
 at time loop. It would be much faster using a table lookup, but we wish to avoid
@@ -358,25 +355,25 @@ References
 
 [CoronDpa] Coron,
 "Resistance against Differential Power Analysis for Elliptic Curve Cryptosystems"
-(http://citeseer.ist.psu.edu/viewdoc/summary?doi=10.1.1.1.5695)
+(https://citeseer.ist.psu.edu/viewdoc/summary?doi=10.1.1.1.5695)
 
 [InvalidCurve] Biehl, Meyer, Müller: Differential fault attacks on
 elliptic curve cryptosystems
-(http://www.iacr.org/archive/crypto2000/18800131/18800131.pdf)
+(https://www.iacr.org/archive/crypto2000/18800131/18800131.pdf)
 
 [InvalidCurveTLS] Jager, Schwenk, Somorovsky: Practical Invalid Curve
 Attacks on TLS-ECDH
 (https://www.nds.rub.de/research/publications/ESORICS15/)
 
 [SafeCurves] Bernstein, Lange: SafeCurves: choosing safe curves for
-elliptic-curve cryptography. (http://safecurves.cr.yp.to)
+elliptic-curve cryptography. (https://safecurves.cr.yp.to)
 
 [Lucky13] AlFardan, Paterson "Lucky Thirteen: Breaking the TLS and DTLS Record Protocols"
 (http://www.isg.rhul.ac.uk/tls/TLStiming.pdf)
 
 [MillionMsg] Bleichenbacher "Chosen Ciphertext Attacks Against Protocols Based
 on the RSA Encryption Standard PKCS1"
-(http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.19.8543)
+(https://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.19.8543)
 
 [MillionMsgTiming] Meyer, Somorovsky, Weiss, Schwenk, Schinzel, Tews: Revisiting
 SSL/TLS Implementations: New Bleichenbacher Side Channels and Attacks
@@ -388,7 +385,7 @@ Encryption Padding (OAEP) as Standardized in PKCS #1 v2.0"
 
 [RsaFault] Boneh, Demillo, Lipton
 "On the importance of checking cryptographic protocols for faults"
-(http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.48.9764)
+(https://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.48.9764)
 
 [RandomMonty] Le, Tan, Tunstall "Randomizing the Montgomery Powering Ladder"
 (https://eprint.iacr.org/2015/657)

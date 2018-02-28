@@ -266,6 +266,16 @@ std::string EC_Group::PEM_for_named_group(const std::string& name)
          "8f0XjAs61Y8QEm3ozkJDW1PcZ+FA0r+UH/3UWcbWVeECAQE="
          "-----END EC PARAMETERS-----";
 
+   if(name == "sm2p256v1")
+      return
+         "-----BEGIN EC PARAMETERS-----"
+         "MIHgAgEBMCwGByqGSM49AQECIQD////+/////////////////////wAAAAD/////"
+         "/////zBEBCD////+/////////////////////wAAAAD//////////AQgKOn6np2f"
+         "XjRNWp5Lz2UJp/OXifUVq4+S3by9QU2UDpMEQQQyxK4sHxmBGV+ZBEZqOcmUj+ML"
+         "v/JmC+FxWkWJM0x0x7w3NqL09necWb3O42tpIVPQqYd8xipHQALfMuUhOfCgAiEA"
+         "/////v///////////////3ID32shxgUrU7v0CTnVQSMCAQE="
+         "-----END EC PARAMETERS-----";
+
 #if defined(BOTAN_HOUSE_ECC_CURVE_NAME)
    if(name == BOTAN_HOUSE_ECC_CURVE_NAME)
       return BOTAN_HOUSE_ECC_CURVE_PEM;
@@ -274,4 +284,39 @@ std::string EC_Group::PEM_for_named_group(const std::string& name)
    return "";
    }
 
+const std::set<std::string>& EC_Group::known_named_groups()
+   {
+   static const std::set<std::string> named_groups = {
+      "secp160k1",
+      "secp160r1",
+      "secp160r2",
+      "secp192k1",
+      "secp192r1",
+      "secp224k1",
+      "secp224r1",
+      "secp256k1",
+      "secp256r1",
+      "secp384r1",
+      "secp521r1",
+      "brainpool160r1",
+      "brainpool192r1",
+      "brainpool224r1",
+      "brainpool256r1",
+      "brainpool320r1",
+      "brainpool384r1",
+      "brainpool512r1",
+      "x962_p192v2",
+      "x962_p192v3",
+      "x962_p239v1",
+      "x962_p239v2",
+      "x962_p239v3",
+      "gost_256A",
+      "frp256v1",
+      "sm2p256v1"
+#if defined(BOTAN_HOUSE_ECC_CURVE_NAME)
+      ,BOTAN_HOUSE_ECC_CURVE_NAME
+#endif
+      };
+      return named_groups;
+   }
 }

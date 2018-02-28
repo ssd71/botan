@@ -7,13 +7,13 @@
 
 #include <botan/rsa.h>
 #include <botan/internal/pk_ops_impl.h>
-#include <botan/parsing.h>
 #include <botan/keypair.h>
 #include <botan/blinding.h>
 #include <botan/reducer.h>
 #include <botan/workfactor.h>
 #include <botan/der_enc.h>
 #include <botan/ber_dec.h>
+#include <botan/pow_mod.h>
 
 #if defined(BOTAN_HAS_OPENSSL)
   #include <botan/internal/openssl.h>
@@ -239,12 +239,12 @@ class RSA_Private_Operation
       Blinder m_blinder;
    };
 
-class RSA_Signature_Operation : public PK_Ops::Signature_with_EMSA,
+class RSA_Signature_Operation final : public PK_Ops::Signature_with_EMSA,
                                 private RSA_Private_Operation
    {
    public:
 
-      size_t max_input_bits() const override { return get_max_input_bits(); };
+      size_t max_input_bits() const override { return get_max_input_bits(); }
 
       RSA_Signature_Operation(const RSA_PrivateKey& rsa, const std::string& emsa, RandomNumberGenerator& rng) :
          PK_Ops::Signature_with_EMSA(emsa),
@@ -263,12 +263,12 @@ class RSA_Signature_Operation : public PK_Ops::Signature_with_EMSA,
          }
    };
 
-class RSA_Decryption_Operation : public PK_Ops::Decryption_with_EME,
+class RSA_Decryption_Operation final : public PK_Ops::Decryption_with_EME,
                                  private RSA_Private_Operation
    {
    public:
 
-      size_t max_raw_input_bits() const override { return get_max_input_bits(); };
+      size_t max_raw_input_bits() const override { return get_max_input_bits(); }
 
       RSA_Decryption_Operation(const RSA_PrivateKey& rsa, const std::string& eme, RandomNumberGenerator& rng) :
          PK_Ops::Decryption_with_EME(eme),
@@ -286,7 +286,7 @@ class RSA_Decryption_Operation : public PK_Ops::Decryption_with_EME,
          }
    };
 
-class RSA_KEM_Decryption_Operation : public PK_Ops::KEM_Decryption_with_KDF,
+class RSA_KEM_Decryption_Operation final : public PK_Ops::KEM_Decryption_with_KDF,
                                      private RSA_Private_Operation
    {
    public:
@@ -335,7 +335,7 @@ class RSA_Public_Operation
       Fixed_Exponent_Power_Mod m_powermod_e_n;
    };
 
-class RSA_Encryption_Operation : public PK_Ops::Encryption_with_EME,
+class RSA_Encryption_Operation final : public PK_Ops::Encryption_with_EME,
                                  private RSA_Public_Operation
    {
    public:
@@ -346,7 +346,7 @@ class RSA_Encryption_Operation : public PK_Ops::Encryption_with_EME,
          {
          }
 
-      size_t max_raw_input_bits() const override { return get_max_input_bits(); };
+      size_t max_raw_input_bits() const override { return get_max_input_bits(); }
 
       secure_vector<uint8_t> raw_encrypt(const uint8_t msg[], size_t msg_len,
                                       RandomNumberGenerator&) override
@@ -356,12 +356,12 @@ class RSA_Encryption_Operation : public PK_Ops::Encryption_with_EME,
          }
    };
 
-class RSA_Verify_Operation : public PK_Ops::Verification_with_EMSA,
+class RSA_Verify_Operation final : public PK_Ops::Verification_with_EMSA,
                              private RSA_Public_Operation
    {
    public:
 
-      size_t max_input_bits() const override { return get_max_input_bits(); };
+      size_t max_input_bits() const override { return get_max_input_bits(); }
 
       RSA_Verify_Operation(const RSA_PublicKey& rsa, const std::string& emsa) :
          PK_Ops::Verification_with_EMSA(emsa),
@@ -378,7 +378,7 @@ class RSA_Verify_Operation : public PK_Ops::Verification_with_EMSA,
          }
    };
 
-class RSA_KEM_Encryption_Operation : public PK_Ops::KEM_Encryption_with_KDF,
+class RSA_KEM_Encryption_Operation final : public PK_Ops::KEM_Encryption_with_KDF,
                                      private RSA_Public_Operation
    {
    public:

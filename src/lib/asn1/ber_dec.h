@@ -5,10 +5,10 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_BER_DECODER_H__
-#define BOTAN_BER_DECODER_H__
+#ifndef BOTAN_BER_DECODER_H_
+#define BOTAN_BER_DECODER_H_
 
-#include <botan/asn1_oid.h>
+#include <botan/asn1_obj.h>
 #include <botan/data_src.h>
 
 namespace Botan {
@@ -16,7 +16,7 @@ namespace Botan {
 /**
 * BER Decoding Object
 */
-class BOTAN_DLL BER_Decoder
+class BOTAN_PUBLIC_API(2,0) BER_Decoder final
    {
    public:
       BER_Object get_next_object();
@@ -34,15 +34,64 @@ class BOTAN_DLL BER_Decoder
 
       BER_Decoder& get_next(BER_Object& ber);
 
-      BER_Decoder& raw_bytes(secure_vector<uint8_t>& v);
-      BER_Decoder& raw_bytes(std::vector<uint8_t>& v);
+      /**
+      * Get next object and copy value to POD type
+      * Asserts value length is equal to POD type sizeof.
+      * Asserts Type tag and optional Class tag according to parameters.
+      * Copy value to POD type (struct, union, C-style array, std::array, etc.).
+      * @param out POD type reference where to copy object value
+      * @param type_tag ASN1_Tag enum to assert type on object read
+      * @param class_tag ASN1_Tag enum to assert class on object read (default: CONTEXT_SPECIFIC)
+      * @return this reference  
+      */
+      template <typename T>
+         BER_Decoder& get_next_value(T &out,
+                                     ASN1_Tag type_tag,
+                                     ASN1_Tag class_tag = CONTEXT_SPECIFIC)
+         {
+         static_assert(std::is_pod<T>::value, "Type must be POD");
+
+         BER_Object obj = get_next_object();
+         obj.assert_is_a(type_tag, class_tag);
+
+         if (obj.value.size() != sizeof(T))
+            throw BER_Decoding_Error(
+                    "Size mismatch. Object value size is " +
+                    std::to_string(obj.value.size()) +
+                    "; Output type size is " +
+                    std::to_string(sizeof(T)));
+
+         copy_mem(reinterpret_cast<uint8_t*>(&out), obj.value.data(), obj.value.size());
+
+         return (*this);
+         }
+
+      /*
+      * Save all the bytes remaining in the source
+      */
+      template<typename Alloc>
+      BER_Decoder& raw_bytes(std::vector<uint8_t, Alloc>& out)
+         {
+         out.clear();
+         uint8_t buf;
+         while(m_source->read_byte(buf))
+            out.push_back(buf);
+         return (*this);
+         }
 
       BER_Decoder& decode_null();
       BER_Decoder& decode(bool& v);
       BER_Decoder& decode(size_t& v);
       BER_Decoder& decode(class BigInt& v);
-      BER_Decoder& decode(std::vector<uint8_t>& v, ASN1_Tag type_tag);
-      BER_Decoder& decode(secure_vector<uint8_t>& v, ASN1_Tag type_tag);
+
+      /*
+      * BER decode a BIT STRING or OCTET STRING
+      */
+      template<typename Alloc>
+      BER_Decoder& decode(std::vector<uint8_t, Alloc>& out, ASN1_Tag real_type)
+         {
+         return decode(out, real_type, real_type, UNIVERSAL);
+         }
 
       BER_Decoder& decode(bool& v,
                           ASN1_Tag type_tag,
@@ -166,12 +215,12 @@ class BOTAN_DLL BER_Decoder
       explicit BER_Decoder(const std::vector<uint8_t>& vec);
 
       BER_Decoder(const BER_Decoder&);
-      ~BER_Decoder();
    private:
       BER_Decoder* m_parent;
-      DataSource* m_source;
       BER_Object m_pushed;
-      mutable bool m_owns;
+      // either m_data_src.get() or an unowned pointer
+      DataSource* m_source;
+      mutable std::unique_ptr<DataSource> m_data_src;
    };
 
 /*

@@ -1,5 +1,4 @@
 endian little
-unaligned ok
 
 family x86
 
@@ -62,14 +61,14 @@ intelcput2700 -> prescott
 </submodel_aliases>
 
 <isa_extensions>
-sse2
-ssse3
-sse4.1
-sse4.2
+aesni
 avx2
 bmi2
-aesni
 rdrand
 rdseed
 sha
+sse2
+sse41
+sse42
+ssse3
 </isa_extensions>

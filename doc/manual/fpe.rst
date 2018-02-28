@@ -13,7 +13,7 @@ mappings like English words onto other English words.
 
 The scheme currently implemented in botan is called FE1, and described
 in the paper `Format Preserving Encryption
-<http://eprint.iacr.org/2009/251>`_ by Mihir Bellare, Thomas
+<https://eprint.iacr.org/2009/251>`_ by Mihir Bellare, Thomas
 Ristenpart, Phillip Rogaway, and Till Stegers. FPE is an area of
 ongoing standardization and it is likely that other schemes will be
 included in the future.
@@ -21,7 +21,7 @@ included in the future.
 To use FE1, use these functions, from ``fpe_fe1.h``:
 
 .. cpp:function:: BigInt FPE::fe1_encrypt(const BigInt& n, const BigInt& X, \
-   const SymmetricKey& key, const std::vector<byte>& tweak)
+   const SymmetricKey& key, const std::vector<uint8_t>& tweak)
 
    Encrypts the value *X* modulo the value *n* using the *key* and
    *tweak* specified. Returns an integer less than *n*. The *tweak* is
@@ -39,7 +39,7 @@ To use FE1, use these functions, from ``fpe_fe1.h``:
    checksum is for the new (ciphertext) number.
 
 .. cpp:function:: BigInt FPE::fe1_decrypt(const BigInt& n, const BigInt& X, \
-   const SymmetricKey& key, const std::vector<byte>& tweak)
+   const SymmetricKey& key, const std::vector<uint8_t>& tweak)
 
    Decrypts an FE1 ciphertext produced by :cpp:func:`fe1_encrypt`; the
    *n*, *key* and *tweak* should be the same as that provided to the
@@ -50,7 +50,7 @@ To use FE1, use these functions, from ``fpe_fe1.h``:
    simply a random integer.
 
 This example encrypts a credit card number with a valid
-`Luhn checksum <http://en.wikipedia.org/wiki/Luhn_algorithm>`_ to
+`Luhn checksum <https://en.wikipedia.org/wiki/Luhn_algorithm>`_ to
 another number with the same format, including a correct checksum.
 
 .. literalinclude:: ../../src/cli/cc_enc.cpp

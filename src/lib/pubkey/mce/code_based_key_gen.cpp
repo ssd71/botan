@@ -19,7 +19,7 @@ namespace Botan {
 
 namespace {
 
-struct binary_matrix
+class binary_matrix final
    {
    public:
       binary_matrix(uint32_t m_rown, uint32_t m_coln);
@@ -33,21 +33,16 @@ struct binary_matrix
       uint32_t coef(uint32_t i, uint32_t j)
          {
          return (m_elem[(i) * m_rwdcnt + (j) / 32] >> (j % 32)) & 1;
-         };
+         }
 
       void set_coef_to_one(uint32_t i, uint32_t j)
          {
          m_elem[(i) * m_rwdcnt + (j) / 32] |= (static_cast<uint32_t>(1) << ((j) % 32)) ;
-         };
+         }
 
       void toggle_coeff(uint32_t i, uint32_t j)
          {
          m_elem[(i) * m_rwdcnt + (j) / 32] ^= (static_cast<uint32_t>(1) << ((j) % 32)) ;
-         }
-
-      void set_to_zero()
-         {
-         zeroise(m_elem);
          }
 
       //private:

@@ -36,7 +36,7 @@ Starting in 1.11.31, the application callbacks are encapsulated as the class
 mandatory for using TLS, all others are optional and provide additional
 information about the connection.
 
- .. cpp:function:: void tls_emit_data(const byte data[], size_t data_len)
+ .. cpp:function:: void tls_emit_data(const uint8_t data[], size_t data_len)
 
     Mandatory. The TLS stack requests that all bytes of *data* be queued up to send to the
     counterparty. After this function returns, the buffer containing *data* will
@@ -50,7 +50,7 @@ information about the connection.
     For TLS all writes must occur *in the order requested*.
     For DTLS this ordering is not strictly required, but is still recommended.
 
- .. cpp:function:: void tls_record_received(uint64_t rec_no, const byte data[], size_t data_len)
+ .. cpp:function:: void tls_record_received(uint64_t rec_no, const uint8_t data[], size_t data_len)
 
     Mandatory. Called once for each application_data record which is received, with the
     matching (TLS level) record sequence number.
@@ -165,8 +165,8 @@ available:
 
 .. cpp:class:: TLS::Channel
 
-   .. cpp:function:: size_t received_data(const byte buf[], size_t buf_size)
-   .. cpp:function:: size_t received_data(const std::vector<byte>& buf)
+   .. cpp:function:: size_t received_data(const uint8_t buf[], size_t buf_size)
+   .. cpp:function:: size_t received_data(const std::vector<uint8_t>& buf)
 
      This function is used to provide data sent by the counterparty
      (eg data that you read off the socket layer). Depending on the
@@ -179,9 +179,9 @@ available:
      the data fell exactly on a message boundary, in which case it
      will return 0 instead.
 
-   .. cpp:function:: void send(const byte buf[], size_t buf_size)
+   .. cpp:function:: void send(const uint8_t buf[], size_t buf_size)
    .. cpp:function:: void send(const std::string& str)
-   .. cpp:function:: void send(const std::vector<byte>& vec)
+   .. cpp:function:: void send(const std::vector<uint8_t>& vec)
 
      Create one or more new TLS application records containing the
      provided data and send them. This will eventually result in at
@@ -301,6 +301,10 @@ TLS Clients
    server you are attempting to connect to, if you know it. This helps
    the server select what certificate to use and helps the client
    validate the connection.
+
+   Note that the server name indicator name must be a FQDN.  IP
+   addresses are not allowed by RFC 6066 and may lead to interoperability
+   problems.
 
    Use the optional *offer_version* to control the version of TLS you
    wish the client to offer. Normally, you'll want to offer the most
@@ -646,7 +650,7 @@ information about that session:
       Returns ``true`` if the connection was negotiated with the
       correct extensions to prevent the renegotiation attack.
 
-   .. cpp:function:: std::vector<byte> encrypt(const SymmetricKey& key, \
+   .. cpp:function:: std::vector<uint8_t> encrypt(const SymmetricKey& key, \
                                                RandomNumberGenerator& rng)
 
       Encrypts a session using a symmetric key *key* and returns a raw
@@ -656,14 +660,14 @@ information about that session:
       Currently the implementation encrypts the session using AES-256
       in GCM mode with a random nonce.
 
-   .. cpp:function:: static Session decrypt(const byte ciphertext[], \
+   .. cpp:function:: static Session decrypt(const uint8_t ciphertext[], \
                                             size_t length, \
                                             const SymmetricKey& key)
 
       Decrypts a session that was encrypted previously with ``encrypt`` and
       ``key``, or throws an exception if decryption fails.
 
-   .. cpp:function:: secure_vector<byte> DER_encode() const
+   .. cpp:function:: secure_vector<uint8_t> DER_encode() const
 
        Returns a serialized version of the session.
 
@@ -689,12 +693,12 @@ implementation to the ``TLS::Client`` or ``TLS::Server`` constructor.
      ID will replicate a session ID already stored, in which case the
      new session information should overwrite the previous information.
 
- .. cpp:function:: void remove_entry(const std::vector<byte>& session_id)
+ .. cpp:function:: void remove_entry(const std::vector<uint8_t>& session_id)
 
       Remove the session identified by *session_id*. Future attempts
       at resumption should fail for this session.
 
- .. cpp:function:: bool load_from_session_id(const std::vector<byte>& session_id, \
+ .. cpp:function:: bool load_from_session_id(const std::vector<uint8_t>& session_id, \
                                              Session& session)
 
       Attempt to resume a session identified by *session_id*. If
@@ -801,7 +805,8 @@ policy settings from a file.
      "AES-256/CCM", "AES-128/CCM", "AES-256", "AES-128"
 
      Also allowed: "AES-256/CCM(8)", "AES-128/CCM(8)",
-     "Camellia-256/GCM", "Camellia-128/GCM", "Camellia-256", "Camellia-128"
+     "Camellia-256/GCM", "Camellia-128/GCM", "ARIA-256/GCM", "ARIA-128/GCM",
+     "Camellia-256", "Camellia-128"
 
      Also allowed (though currently experimental): "AES-128/OCB(12)",
      "AES-256/OCB(12)"
@@ -918,7 +923,7 @@ policy settings from a file.
 
      Default: false
 
- .. cpp:function:: std::vector<byte> compression() const
+ .. cpp:function:: std::vector<uint8_t> compression() const
 
      Return the list of compression methods we are willing to use, in order of
      preference. Default is null compression only.
@@ -952,6 +957,14 @@ policy settings from a file.
      data in their ``alert_cb``.
 
      Default: false
+
+ .. cpp:function:: bool allow_client_initiated_renegotiation() const
+
+     If this function returns true, a server will accept a
+     client-initiated renegotiation attempt. Otherwise it will send
+     the client a non-fatal ``no_renegotiation`` alert.
+
+     Default: true
 
  .. cpp:function:: bool allow_server_initiated_renegotiation() const
 
@@ -1006,7 +1019,7 @@ policy settings from a file.
      fatal alert then attempt to reconnect after disabling ephemeral
      Diffie-Hellman.
 
-     Default: 1024 bits
+     Default: 2048 bits
 
 .. cpp:function:: size_t minimum_rsa_bits() const
 
@@ -1060,7 +1073,7 @@ TLS Ciphersuites
 
 .. cpp:class:: TLS::Ciphersuite
 
- .. cpp:function:: u16bit ciphersuite_code() const
+ .. cpp:function:: uint16_t ciphersuite_code() const
 
      Return the numerical code for this ciphersuite
 
@@ -1128,11 +1141,11 @@ The ``TLS::Protocol_Version`` class represents a specific version:
 
       Create a specific version
 
- .. cpp:function:: byte major_version() const
+ .. cpp:function:: uint8_t major_version() const
 
       Returns major number of the protocol version
 
- .. cpp:function:: byte minor_version() const
+ .. cpp:function:: uint8_t minor_version() const
 
       Returns minor number of the protocol version
 

@@ -1,34 +1,24 @@
 /*
 * SHA-{224,256}
-* (C) 1999-2010 Jack Lloyd
+* (C) 1999-2010,2017 Jack Lloyd
 *     2007 FlexSecure GmbH
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
 #include <botan/sha2_32.h>
+#include <botan/cpuid.h>
 
 namespace Botan {
 
-namespace {
-
-namespace SHA2_32 {
-
-/*
-* SHA-256 Rho Function
-*/
-inline uint32_t rho(uint32_t X, uint32_t rot1, uint32_t rot2, uint32_t rot3)
+std::unique_ptr<HashFunction> SHA_224::copy_state() const
    {
-   return (rotate_right(X, rot1) ^ rotate_right(X, rot2) ^
-           rotate_right(X, rot3));
+   return std::unique_ptr<HashFunction>(new SHA_224(*this));
    }
 
-/*
-* SHA-256 Sigma Function
-*/
-inline uint32_t sigma(uint32_t X, uint32_t rot1, uint32_t rot2, uint32_t shift)
+std::unique_ptr<HashFunction> SHA_256::copy_state() const
    {
-   return (rotate_right(X, rot1) ^ rotate_right(X, rot2) ^ (X >> shift));
+   return std::unique_ptr<HashFunction>(new SHA_256(*this));
    }
 
 /*
@@ -37,20 +27,37 @@ inline uint32_t sigma(uint32_t X, uint32_t rot1, uint32_t rot2, uint32_t shift)
 * Use a macro as many compilers won't inline a function this big,
 * even though it is much faster if inlined.
 */
-#define SHA2_32_F(A, B, C, D, E, F, G, H, M1, M2, M3, M4, magic)   \
-   do {                                                            \
-      H += magic + rho(E, 6, 11, 25) + ((E & F) ^ (~E & G)) + M1;  \
-      D += H;                                                      \
-      H += rho(A, 2, 13, 22) + ((A & B) | ((A | B) & C));          \
-      M1 += sigma(M2, 17, 19, 10) + M3 + sigma(M4, 7, 18, 3);      \
+#define SHA2_32_F(A, B, C, D, E, F, G, H, M1, M2, M3, M4, magic) do {               \
+   uint32_t A_rho = rotr<2>(A) ^ rotr<13>(A) ^ rotr<22>(A); \
+   uint32_t E_rho = rotr<6>(E) ^ rotr<11>(E) ^ rotr<25>(E); \
+   uint32_t M2_sigma = rotr<17>(M2) ^ rotr<19>(M2) ^ (M2 >> 10);    \
+   uint32_t M4_sigma = rotr<7>(M4) ^ rotr<18>(M4) ^ (M4 >> 3);      \
+   H += magic + E_rho + ((E & F) ^ (~E & G)) + M1;                                  \
+   D += H;                                                                          \
+   H += A_rho + ((A & B) | ((A | B) & C));                                          \
+   M1 += M2_sigma + M3 + M4_sigma;                                                  \
    } while(0);
 
 /*
 * SHA-224 / SHA-256 compression function
 */
-void compress(secure_vector<uint32_t>& digest,
-              const uint8_t input[], size_t blocks)
+void SHA_256::compress_digest(secure_vector<uint32_t>& digest,
+                              const uint8_t input[], size_t blocks)
    {
+#if defined(BOTAN_HAS_SHA2_32_X86)
+   if(CPUID::has_intel_sha())
+      {
+      return SHA_256::compress_digest_x86(digest, input, blocks);
+      }
+#endif
+
+#if defined(BOTAN_HAS_SHA2_32_ARMV8)
+   if(CPUID::has_arm_sha2())
+      {
+      return SHA_256::compress_digest_armv8(digest, input, blocks);
+      }
+#endif
+
    uint32_t A = digest[0], B = digest[1], C = digest[2],
           D = digest[3], E = digest[4], F = digest[5],
           G = digest[6], H = digest[7];
@@ -152,16 +159,12 @@ void compress(secure_vector<uint32_t>& digest,
       }
    }
 
-}
-
-}
-
 /*
 * SHA-224 compression function
 */
 void SHA_224::compress_n(const uint8_t input[], size_t blocks)
    {
-   SHA2_32::compress(m_digest, input, blocks);
+   SHA_256::compress_digest(m_digest, input, blocks);
    }
 
 /*
@@ -193,7 +196,7 @@ void SHA_224::clear()
 */
 void SHA_256::compress_n(const uint8_t input[], size_t blocks)
    {
-   SHA2_32::compress(m_digest, input, blocks);
+   SHA_256::compress_digest(m_digest, input, blocks);
    }
 
 /*

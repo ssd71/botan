@@ -2,6 +2,7 @@
 * Policies for TLS
 * (C) 2004-2010,2012,2015,2016 Jack Lloyd
 *     2016 Christian Mainka
+*     2017 Harry Reimann, Rohde & Schwarz Cybersecurity
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -10,7 +11,10 @@
 #include <botan/tls_ciphersuite.h>
 #include <botan/tls_magic.h>
 #include <botan/tls_exceptn.h>
+#include <botan/tls_extensions.h>
 #include <botan/internal/stl_util.h>
+#include <botan/pk_keys.h>
+#include <sstream>
 
 namespace Botan {
 
@@ -30,6 +34,8 @@ std::vector<std::string> Policy::allowed_ciphers() const
       //"AES-128/CCM(8)",
       //"Camellia-256/GCM",
       //"Camellia-128/GCM",
+      //"ARIA-256/GCM",
+      //"ARIA-128/GCM",
       "AES-256",
       "AES-128",
       //"Camellia-256",
@@ -93,6 +99,11 @@ bool Policy::allowed_signature_method(const std::string& sig_method) const
    return value_exists(allowed_signature_methods(), sig_method);
    }
 
+bool Policy::allowed_signature_hash(const std::string& sig_hash) const
+   {
+   return value_exists(allowed_signature_hashes(), sig_hash);
+   }
+
 std::vector<std::string> Policy::allowed_ecc_curves() const
    {
    // Default list is ordered by performance
@@ -110,7 +121,11 @@ std::vector<std::string> Policy::allowed_ecc_curves() const
 
 bool Policy::allowed_ecc_curve(const std::string& curve) const
    {
-   return value_exists(allowed_ecc_curves(), curve);
+   if(!allowed_ecc_curves().empty())
+      {
+      return value_exists(allowed_ecc_curves(), curve);
+      }
+   return value_exists(allowed_groups(), curve);
    }
 
 bool Policy::use_ecc_point_compression() const
@@ -123,19 +138,54 @@ bool Policy::use_ecc_point_compression() const
 */
 std::string Policy::choose_curve(const std::vector<std::string>& curve_names) const
    {
-   const std::vector<std::string> our_curves = allowed_ecc_curves();
+   const std::vector<std::string> our_groups = allowed_groups();
 
-   for(size_t i = 0; i != our_curves.size(); ++i)
-      if(value_exists(curve_names, our_curves[i]))
-         return our_curves[i];
+   for(size_t i = 0; i != our_groups.size(); ++i)
+      if(!Supported_Groups::is_dh_group(our_groups[i])
+         && value_exists(curve_names, our_groups[i]))
+         return our_groups[i];
 
    return ""; // no shared curve
+   }
+
+/*
+* Choose an FFDHE group to use
+*/
+std::string Policy::choose_dh_group(const std::vector<std::string>& dh_groups) const
+   {
+   const std::vector<std::string> our_groups = allowed_groups();
+
+   for(size_t i = 0; i != our_groups.size(); ++i)
+      if(Supported_Groups::is_dh_group(our_groups[i])
+            && value_exists(dh_groups, our_groups[i]))
+         return our_groups[i];
+
+   return ""; // no shared ffdhe group
    }
 
 std::string Policy::dh_group() const
    {
    // We offer 2048 bit DH because we can
    return "modp/ietf/2048";
+   }
+
+std::vector<std::string> Policy::allowed_groups() const
+   {
+   // Default list is ordered by performance
+   return {
+      "x25519",
+      "secp256r1",
+      "secp521r1",
+      "secp384r1",
+      "brainpool256r1",
+      "brainpool384r1",
+      "brainpool512r1",
+      "ffdhe/ietf/2048",
+      "ffdhe/ietf/3072",
+      "ffdhe/ietf/4096",
+      "ffdhe/ietf/6144",
+      "ffdhe/ietf/8192"
+      };
    }
 
 size_t Policy::minimum_dh_group_size() const
@@ -256,9 +306,23 @@ bool Policy::acceptable_protocol_version(Protocol_Version version) const
 Protocol_Version Policy::latest_supported_version(bool datagram) const
    {
    if(datagram)
-      return Protocol_Version::latest_dtls_version();
+      {
+      if(allow_dtls12())
+         return Protocol_Version::DTLS_V12;
+      if(allow_dtls10())
+         return Protocol_Version::DTLS_V10;
+      throw Invalid_State("Policy forbids all available DTLS version");
+      }
    else
-      return Protocol_Version::latest_tls_version();
+      {
+      if(allow_tls12())
+         return Protocol_Version::TLS_V12;
+      if(allow_tls11())
+         return Protocol_Version::TLS_V11;
+      if(allow_tls10())
+         return Protocol_Version::TLS_V10;
+      throw Invalid_State("Policy forbids all available TLS version");
+      }
    }
 
 bool Policy::acceptable_ciphersuite(const Ciphersuite&) const
@@ -266,6 +330,7 @@ bool Policy::acceptable_ciphersuite(const Ciphersuite&) const
    return true;
    }
 
+bool Policy::allow_client_initiated_renegotiation() const { return false; }
 bool Policy::allow_server_initiated_renegotiation() const { return false; }
 bool Policy::allow_insecure_renegotiation() const { return false; }
 bool Policy::allow_tls10()  const { return true; }
@@ -277,6 +342,7 @@ bool Policy::include_time_in_hello_random() const { return true; }
 bool Policy::hide_unknown_users() const { return false; }
 bool Policy::server_uses_own_ciphersuite_preferences() const { return true; }
 bool Policy::negotiate_encrypt_then_mac() const { return true; }
+bool Policy::support_cert_status_message() const { return true; }
 
 // 1 second initial timeout, 60 second max - see RFC 6347 sec 4.2.4.1
 size_t Policy::dtls_initial_timeout() const { return 1*1000; }
@@ -295,7 +361,7 @@ std::vector<uint16_t> Policy::srtp_profiles() const
 
 namespace {
 
-class Ciphersuite_Preference_Ordering
+class Ciphersuite_Preference_Ordering final
    {
    public:
       Ciphersuite_Preference_Ordering(const std::vector<std::string>& ciphers,
@@ -480,6 +546,7 @@ void Policy::print(std::ostream& o) const
    print_vec(o, "signature_methods", allowed_signature_methods());
    print_vec(o, "key_exchange_methods", allowed_key_exchange_methods());
    print_vec(o, "ecc_curves", allowed_ecc_curves());
+   print_vec(o, "groups", allowed_groups());
 
    print_bool(o, "allow_insecure_renegotiation", allow_insecure_renegotiation());
    print_bool(o, "include_time_in_hello_random", include_time_in_hello_random());
@@ -487,6 +554,7 @@ void Policy::print(std::ostream& o) const
    print_bool(o, "hide_unknown_users", hide_unknown_users());
    print_bool(o, "server_uses_own_ciphersuite_preferences", server_uses_own_ciphersuite_preferences());
    print_bool(o, "negotiate_encrypt_then_mac", negotiate_encrypt_then_mac());
+   print_bool(o, "support_cert_status_message", support_cert_status_message());
    o << "session_ticket_lifetime = " << session_ticket_lifetime() << '\n';
    o << "dh_group = " << dh_group() << '\n';
    o << "minimum_dh_group_size = " << minimum_dh_group_size() << '\n';

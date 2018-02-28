@@ -17,10 +17,10 @@ namespace Botan {
       X1 += X5;                                                      \
       X2 += X6;                                                      \
       X3 += X7;                                                      \
-      X4 = rotate_left(X4, ROT1);                                    \
-      X5 = rotate_left(X5, ROT2);                                    \
-      X6 = rotate_left(X6, ROT3);                                    \
-      X7 = rotate_left(X7, ROT4);                                    \
+      X4 = rotl<ROT1>(X4);                                           \
+      X5 = rotl<ROT2>(X5);                                           \
+      X6 = rotl<ROT3>(X6);                                           \
+      X7 = rotl<ROT4>(X7);                                           \
       X4 ^= X0;                                                      \
       X5 ^= X1;                                                      \
       X6 ^= X2;                                                      \
@@ -98,6 +98,18 @@ void Threefish_512::skein_feedfwd(const secure_vector<uint64_t>& M,
             m_K[4] ^ m_K[5] ^ m_K[6] ^ m_K[7] ^ 0x1BD11BDAA9FC1A22;
    }
 
+size_t Threefish_512::parallelism() const
+   {
+#if defined(BOTAN_HAS_THREEFISH_512_AVX2)
+   if(CPUID::has_avx2())
+      {
+      return 2;
+      }
+#endif
+
+   return 1;
+   }
+
 std::string Threefish_512::provider() const
    {
 #if defined(BOTAN_HAS_THREEFISH_512_AVX2)
@@ -112,8 +124,7 @@ std::string Threefish_512::provider() const
 
 void Threefish_512::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
-   BOTAN_ASSERT(m_K.size() == 9, "Key was set");
-   BOTAN_ASSERT(m_T.size() == 3, "Tweak was set");
+   verify_key_set(m_K.empty() == false);
 
 #if defined(BOTAN_HAS_THREEFISH_512_AVX2)
    if(CPUID::has_avx2())
@@ -122,7 +133,7 @@ void Threefish_512::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) 
       }
 #endif
 
-   BOTAN_PARALLEL_FOR(size_t i = 0; i < blocks; ++i)
+   BOTAN_PARALLEL_SIMD_FOR(size_t i = 0; i < blocks; ++i)
       {
       uint64_t X0, X1, X2, X3, X4, X5, X6, X7;
       load_le(in + BLOCK_SIZE*i, X0, X1, X2, X3, X4, X5, X6, X7);
@@ -149,8 +160,7 @@ void Threefish_512::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) 
 
 void Threefish_512::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
-   BOTAN_ASSERT(m_K.size() == 9, "Key was set");
-   BOTAN_ASSERT(m_T.size() == 3, "Tweak was set");
+   verify_key_set(m_K.empty() == false);
 
 #if defined(BOTAN_HAS_THREEFISH_512_AVX2)
    if(CPUID::has_avx2())
@@ -165,10 +175,10 @@ void Threefish_512::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) 
       X5 ^= X1;                                                      \
       X6 ^= X2;                                                      \
       X7 ^= X3;                                                      \
-      X4 = rotate_right(X4, ROT1);                                   \
-      X5 = rotate_right(X5, ROT2);                                   \
-      X6 = rotate_right(X6, ROT3);                                   \
-      X7 = rotate_right(X7, ROT4);                                   \
+      X4 = rotr<ROT1>(X4);                                           \
+      X5 = rotr<ROT2>(X5);                                           \
+      X6 = rotr<ROT3>(X6);                                           \
+      X7 = rotr<ROT4>(X7);                                           \
       X0 -= X4;                                                      \
       X1 -= X5;                                                      \
       X2 -= X6;                                                      \
@@ -202,7 +212,7 @@ void Threefish_512::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) 
       THREEFISH_INJECT_KEY(R2);                               \
    } while(0)
 
-   BOTAN_PARALLEL_FOR(size_t i = 0; i < blocks; ++i)
+   BOTAN_PARALLEL_SIMD_FOR(size_t i = 0; i < blocks; ++i)
       {
       uint64_t X0, X1, X2, X3, X4, X5, X6, X7;
       load_le(in + BLOCK_SIZE*i, X0, X1, X2, X3, X4, X5, X6, X7);

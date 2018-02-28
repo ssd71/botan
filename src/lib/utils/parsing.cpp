@@ -2,6 +2,7 @@
 * Various string utils and parsing functions
 * (C) 1999-2007,2013,2014,2015 Jack Lloyd
 * (C) 2015 Simon Warta (Kullo GmbH)
+* (C) 2017 René Korthaus, Rohde & Schwarz Cybersecurity
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -15,37 +16,40 @@
 
 namespace Botan {
 
+uint16_t to_uint16(const std::string& str)
+   {
+   const uint32_t x = to_u32bit(str);
+
+   if(x >> 16)
+      throw Invalid_Argument("Integer value exceeds 16 bit range");
+
+   return static_cast<uint16_t>(x);
+   }
+
 uint32_t to_u32bit(const std::string& str)
    {
-   try
+   // std::stoul is not strict enough. Ensure that str is digit only [0-9]*
+   for(const char chr : str)
       {
-      // std::stoul is not strict enough. Ensure that str is digit only [0-9]*
-      for (const char chr : str)
+      if(chr < '0' || chr > '9')
          {
-         if (chr < '0' || chr > '9')
-            {
-            auto chrAsString = std::string(1, chr);
-            throw Invalid_Argument("String contains non-digit char: " + chrAsString);
-            }
+         std::string chrAsString(1, chr);
+         throw Invalid_Argument("String contains non-digit char: " + chrAsString);
          }
-
-      const auto integerValue = std::stoul(str);
-
-      // integerValue might be uint64
-      if (integerValue > std::numeric_limits<uint32_t>::max())
-         {
-         throw Invalid_Argument("Integer value exceeds 32 bit range: " + std::to_string(integerValue));
-         }
-
-      return integerValue;
       }
-   catch(std::exception& e)
+
+   const unsigned long int x = std::stoul(str);
+
+   if(sizeof(unsigned long int) > 4)
       {
-      auto message = std::string("Could not read '" + str + "' as decimal string");
-      auto exceptionMessage = std::string(e.what());
-      if (!exceptionMessage.empty()) message += ": " + exceptionMessage;
-      throw Exception(message);
+      // x might be uint64
+      if (x > std::numeric_limits<uint32_t>::max())
+         {
+         throw Invalid_Argument("Integer value of " + str + " exceeds 32 bit range");
+         }
       }
+
+   return static_cast<uint32_t>(x);
    }
 
 /*
@@ -239,6 +243,8 @@ bool x500_name_cmp(const std::string& name1, const std::string& name2)
 
          if(p1 == name1.end() && p2 == name2.end())
             return true;
+         if(p1 == name1.end() || p2 == name2.end())
+            return false;
          }
 
       if(!Charset::caseless_cmp(*p1, *p2))
@@ -335,22 +341,107 @@ std::string replace_char(const std::string& str, char from_char, char to_char)
 bool host_wildcard_match(const std::string& issued, const std::string& host)
    {
    if(issued == host)
+      {
       return true;
+      }
 
-   if(issued.size() > 2 && issued[0] == '*' && issued[1] == '.')
+   size_t stars = 0;
+   for(char c : issued)
+      {
+      if(c == '*')
+         stars += 1;
+      }
+
+   if(stars > 1)
+      {
+      return false;
+      }
+
+   // first try to match the base, then the left-most label
+   // which can contain exactly one wildcard at any position
+   if(issued.size() > 2)
       {
       size_t host_i = host.find('.');
       if(host_i == std::string::npos || host_i == host.size() - 1)
+         {
          return false;
+         }
+
+      size_t issued_i = issued.find('.');
+      if(issued_i == std::string::npos || issued_i == issued.size() - 1)
+         {
+         return false;
+         }
 
       const std::string host_base = host.substr(host_i + 1);
-      const std::string issued_base = issued.substr(2);
+      const std::string issued_base = issued.substr(issued_i + 1);
 
-      if(host_base == issued_base)
+      // if anything but the left-most label doesn't equal,
+      // we are already out here
+      if(host_base != issued_base)
+         {
+         return false;
+         }
+
+      // compare the left-most labels
+      std::string host_prefix = host.substr(0, host_i);
+
+      if(host_prefix.empty())
+         {
+         return false;
+         }
+
+      const std::string issued_prefix = issued.substr(0, issued_i);
+
+      // if split_on would work on strings with less than 2 items,
+      // the if/else block would not be necessary
+      if(issued_prefix == "*")
+         {
          return true;
          }
 
+      std::vector<std::string> p;
+
+      if(issued_prefix[0] == '*')
+         {
+         p = std::vector<std::string>{"", issued_prefix.substr(1, issued_prefix.size())};
+         }
+      else if(issued_prefix[issued_prefix.size()-1] == '*')
+         {
+         p = std::vector<std::string>{issued_prefix.substr(0, issued_prefix.size() - 1), ""};
+         }
+      else
+         {
+         p = split_on(issued_prefix, '*');
+         }
+
+      if(p.size() != 2)
+         {
+         return false;
+         }
+
+      // match anything before and after the wildcard character
+      const std::string first = p[0];
+      const std::string last = p[1];
+
+      if(host_prefix.substr(0, first.size()) == first)
+         {
+         host_prefix.erase(0, first.size());
+         }
+
+      // nothing to match anymore
+      if(last.empty())
+         {
+         return true;
+         }
+
+      if(host_prefix.size() >= last.size() &&
+            host_prefix.substr(host_prefix.size() - last.size(), last.size()) == last)
+         {
+         return true;
+         }
+      }
+
    return false;
    }
-
 }
