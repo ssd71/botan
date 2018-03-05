@@ -120,6 +120,21 @@ build-linux-all-shared-gcc-32bit-cross:
   except:
     - tags
 
+build-linux-all-shared-gcc-maintainer-mode:
+  script:
+    - export CC=gcc
+    - export CXX=g++
+    - $CXX --version
+    - ./configure.py --module-policy=bsi --enable-modules=$EXTRA_MODULES --cc="$CC" --cc-bin="$CXX" --with-bzip2 --with-lzma --with-sqlite --with-zlib --prefix=/tmp/botan-installation --maintainer-mode
+    - make -j 4
+    - ./botan-test --run-long-tests --run-online-tests
+    - ./botan-test --pkcs11-lib="$SOFTHSM2_LIB_LINUX" pkcs11
+  tags:
+    - ubuntu
+    - x64
+  except:
+    - tags
+
 asan-ubsan:
   script:
     - export CC=gcc
