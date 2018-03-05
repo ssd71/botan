@@ -10,6 +10,7 @@ function android_mk {
 	# target libbotan
 	echo 'include $(CLEAR_VARS)' >> $1
 	echo 'LOCAL_CLANG := true' >> $1
+	echo 'LOCAL_ARM_NEON := true' >> $1
 	echo 'LOCAL_MODULE := libbotan' >> $1
 	echo 'LOCAL_CPP_EXTENSION := .cpp' >> $1
 	echo 'LOCAL_CPP_FEATURES := rtti exceptions' >> $1
