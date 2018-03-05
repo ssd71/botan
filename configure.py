@@ -230,7 +230,7 @@ class BuildPaths(object): # pylint: disable=too-many-instance-attributes
         self.test_sources = [normalize_source_path(s) for s in find_sources_in(source_paths.src_dir, 'tests')]
 
         if options.write_sources_to_file:
-            all_sources = self.sources + self.cli_sources + self.test_sources
+            all_sources = self.lib_sources + self.cli_sources + self.test_sources
             f = open('sources-list.txt','w')
             for src in all_sources:
                 f.write('%s\n' % src)
