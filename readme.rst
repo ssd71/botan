@@ -76,6 +76,25 @@ or alternatively using python::
   $ openssl dgst -sha512 -sigopt rsa_padding_mode:pss -sigopt rsa_pss_saltlen:64 -verify Botan-Signing-Key.pem -signature Botan-2.0.1-RSCS1.zip.sig.dec Botan-2.0.1-RSCS1.zip
   Verified OK
 
+Documentation
+----------------------------------------
+
+Botan provides a comprehensive `API documentation <https://botan.randombit.net/doxygen/>`_ as well as
+a users `handbook <https://botan.randombit.net/manual/>`_.
+
+API documentation and the handbook for the latest version approved by the BSI can be found here:
+
+* `API documentation <doc/bsi/doxygen.zip>`_
+* `Handbook <doc/bsi/handbook.pdf>`_
+
+In addition to the official documentation, we provide the following documents,
+which were created during the BSI project:
+
+* `Software architecture <doc/bsi/architecture.pdf>`_
+* `Implementation of cryptographic algorithms and protocols <doc/bsi/crypto.pdf>`_
+* `Specification of tests <doc/bsi/testspecification.pdf>`_
+* `Test report <doc/bsi/testreport.pdf>`_
+
 Support & Maintenance
 ----------------------------------------
 
