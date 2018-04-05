@@ -263,6 +263,7 @@ osx:
     - make -j 2
     - ./botan-test --run-long-tests --run-online-tests
     - ./botan-test --pkcs11-lib=/usr/local/lib/softhsm/libsofthsm2.so pkcs11
+  allow_failure: true # 1 botan test fails due to networking issues in the infrastructure
   tags:
     - osx10.11
     - xcode7.3
