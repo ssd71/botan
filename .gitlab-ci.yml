@@ -213,10 +213,10 @@ build-windows-static-vs2015:
 build-windows-shared-vs2015:
   script:
     - set OLDDIR=%CD%
-    - call "%ProgramFiles(x86)%\Microsoft Visual C++ Build Tools\vcbuildtools.bat" x64
+    - call "%ProgramFiles(x86)%\Microsoft Visual C++ Build Tools\vcbuildtools.bat" x86
     - chdir /d %OLDDIR%
-    - python configure.py --cc=msvc --cpu=x86_64 --module-policy=bsi --enable-modules=%EXTRA_MODULES%
-    - nmake
+    - python configure.py --module-policy=bsi --enable-modules=%EXTRA_MODULES% --cc=msvc --cpu=x86
+    - jom
     - botan-test.exe --run-long-tests --run-online-tests
     - botan-test.exe --pkcs11-lib=C:\SoftHSMv2-x86-VS2015\softhsm2.dll pkcs11
   tags:
@@ -224,6 +224,7 @@ build-windows-shared-vs2015:
     - x64
   except:
     - tags
+
 
 build-windows-shared-vs2015-with-analysis:
   script:
