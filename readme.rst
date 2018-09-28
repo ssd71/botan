@@ -24,12 +24,12 @@ The versioning scheme used here is based on that of the
 `original project <https://botan.randombit.net/manual/versions.html>`_. In case
 there are differences between an official release version and an approved version,
 the approved version number will contain the original version it is based on followed by
-a `RSCSN` suffix. For example, the version 2.0.1-RSCS1 is based on the official
-Botan version 2.0.1, but contains additional changes that are not part of 2.0.1
-(but may be part of a to-be-released version 2.1.0).
+a `RSCSN` suffix. For example, the version 2.4.0-RSCS1 is based on the official
+Botan version 2.4.0, but contains additional changes that are not part of 2.4.0
+(but may be part of a future Botan version).
 New Botan releases will be audited on a regular basis and cryptographically relevant
-changes will be checked and documented. Provided that the official version 2.4.0 (to be released Jan 8, 2018)
-will be approved by the BSI, this version will finally be announced here.
+changes will be checked and documented. These releases will eventually be
+released here when approved by the BSI.
 
 New releases are also announced on the botan-bsi-announce@rohde-schwarz.com mailing list.
 Subscribe by sending an email to botan-bsi-announce-register@rohde-schwarz.com.
@@ -37,9 +37,9 @@ Subscribe by sending an email to botan-bsi-announce-register@rohde-schwarz.com.
 Release Downloads
 ----------------------------------------
 
-The latest version is `2.0.1-RSCS1 <https://cybersecurity.rohde-schwarz.com/sites/default/files/sha_downloads/Botan-2.0.1-RSCS1.zip>`_ (`sig <https://cybersecurity.rohde-schwarz.com/sites/default/files/sha_downloads/Botan-2.0.1-RSCS1.zip.sig>`_) released on 2017-12-01.
+The latest version is `2.4.0-RSCS1 <https://cybersecurity.rohde-schwarz.com/sites/default/files/sha_downloads/Botan-2.4.0-RSCS1.zip>`_ (`sig <https://cybersecurity.rohde-schwarz.com/sites/default/files/sha_downloads/Botan-2.4.0-RSCS1.zip.sig>`_) released on 2018-09-28.
 
-`SHA-256 <https://cybersecurity.rohde-schwarz.com/sites/default/files/sha_downloads/Botan-2.0.1-RSCS1.zip.sha256>`_: 12FE832236F0DF316AAF9643AAD7FF0A9ACEA4E1C7F2E4A0276FC7709CA5F6E7
+`SHA-256 <https://cybersecurity.rohde-schwarz.com/sites/default/files/sha_downloads/Botan-2.4.0-RSCS1.zip.sha256>`_: <TO BE INSERTED HERE>
 
 All approved releases are signed with the following `key <https://cybersecurity.rohde-schwarz.com/sites/default/files/sha_downloads/Botan-Signing-Key.pem>`_ (`cert <https://cybersecurity.rohde-schwarz.com/sites/default/files/sha_downloads/Botan-Signing-Cert.pem>`_)::
 
@@ -62,18 +62,18 @@ The SHA-256 public key fingerprint is B1B688ED5FD24ACD53E73BE74A5279916471B2A9C8
 
 Verify the release signature using Botan::
 
-  $ botan verify --hash=SHA-512 --emsa=EMSA4 Botan-Signing-Key.pem Botan-2.0.1-RSCS1.zip Botan-2.0.1-RSCS1.zip.sig
+  $ botan verify --hash=SHA-512 --emsa=EMSA4 Botan-Signing-Key.pem Botan-2.4.0-RSCS1.zip Botan-2.4.0-RSCS1.zip.sig
   Signature is valid
 
 Verify the release signature using OpenSSL (you need to base64 decode the signature first)::
 
-  $ type Botan-2.0.1-RSCS1.zip.sig | openssl base64 -d -out Botan-2.0.1-RSCS1.zip.sig.dec
+  $ type Botan-2.4.0-RSCS1.zip.sig | openssl base64 -d -out Botan-2.4.0-RSCS1.zip.sig.dec
 
 or alternatively using python::
 
-  $ python -m base64 -d Botan-2.0.1-RSCS1.zip.sig > Botan-2.0.1-RSCS1.zip.sig.dec
+  $ python -m base64 -d Botan-2.4.0-RSCS1.zip.sig > Botan-2.4.0-RSCS1.zip.sig.dec
 
-  $ openssl dgst -sha512 -sigopt rsa_padding_mode:pss -sigopt rsa_pss_saltlen:64 -verify Botan-Signing-Key.pem -signature Botan-2.0.1-RSCS1.zip.sig.dec Botan-2.0.1-RSCS1.zip
+  $ openssl dgst -sha512 -sigopt rsa_padding_mode:pss -sigopt rsa_pss_saltlen:64 -verify Botan-Signing-Key.pem -signature Botan-2.4.0-RSCS1.zip.sig.dec Botan-2.4.0-RSCS1.zip
   Verified OK
 
 Documentation

@@ -1,7 +1,35 @@
 Release Notes
 ========================================
 
-Changes between 2.0.1 and 2.0.1-RSCS1, 2017-12-01
+Changes between 2.4.0 and 2.4.0-RSCS1, 2018-09-28
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* XMSS signature verification did not check that the signature was of
+  the expected length which could lead to a crash. (GH #1537)
+
+* Fix error in certificate wildcard matching (CVE-2018-9127), where a
+  wildcard cert for ``b*.example.com`` would be accepted as a match for
+  any host with name ``*b*.example.com`` (GH #1519)
+
+* CVE-2018-9860 Fix a bug decrypting TLS CBC ciphertexts which could
+  for a malformed ciphertext cause the decryptor to read and HMAC an
+  additional 64K bytes of data which is not part of the record. This
+  could cause a crash if the read went into unmapped memory. No
+  information leak or out of bounds write occurs.
+
+* Change the name of test vector for TLS CBC padding
+  (backport of https://github.com/randombit/botan/commit/c792f9f514be46857dbef1edc765b616bc48c5de
+
+* Improve interoperability with TLS attacker
+  (backport of https://github.com/randombit/botan/commit/aa6bca4a149228cc3061a7a357865597da53251c)
+
+* Use a fixed validation time point for X.509 path validation
+  tests (backport of https://github.com/randombit/botan/commit/575fdeab778669b83e5c5cc37f584a3cdef554f1)
+
+* Add configure.py option --with-static-analysis: sets compiler flags to
+  enable static analysis using clang-analyzer
+
+Changes between 2.0.1 and 2.0.1-RSCS1, 2017-01-12
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 * The PKCS11 module did not require any external dependencies, so it has been enabled by default. The -with-pkcs11 and --without-pkcs11 flags to configure.py have been removed. (GH #837)
