@@ -29,6 +29,10 @@ Changes between 2.4.0 and 2.4.0-RSCS1, 2018-09-28
 * Add configure.py option --with-static-analysis: sets compiler flags to
   enable static analysis using clang-analyzer
 
+* Fix two off-by-one errors in point multiplication on elliptic curves
+
+* Add results of PKCS#11 interoperability tests to handbook
+
 Changes between 2.0.1 and 2.0.1-RSCS1, 2017-01-12
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
