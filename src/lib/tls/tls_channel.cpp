@@ -7,7 +7,9 @@
 */
 
 #include <botan/tls_channel.h>
+#include <botan/tls_policy.h>
 #include <botan/tls_messages.h>
+#include <botan/kdf.h>
 #include <botan/internal/tls_handshake_state.h>
 #include <botan/internal/tls_record.h>
 #include <botan/internal/tls_seq_numbers.h>
@@ -47,7 +49,13 @@ Channel::Channel(output_fn out,
                  bool is_datagram,
                  size_t io_buf_sz) :
     m_is_datagram(is_datagram),
-    m_compat_callbacks(new Compat_Callbacks(out, app_data_cb, alert_cb, hs_cb, hs_msg_cb)),
+    m_compat_callbacks(new Compat_Callbacks(
+                          /*
+                          this Channel constructor is also deprecated so its ok that it
+                          relies on a deprecated API
+                          */
+                          Compat_Callbacks::SILENCE_DEPRECATION_WARNING::PLEASE,
+                          out, app_data_cb, alert_cb, hs_cb, hs_msg_cb)),
     m_callbacks(*m_compat_callbacks.get()),
     m_session_manager(session_manager),
     m_policy(policy),
@@ -107,6 +115,11 @@ std::vector<X509_Certificate> Channel::peer_cert_chain() const
    if(auto active = active_state())
       return get_peer_cert_chain(*active);
    return std::vector<X509_Certificate>();
+   }
+
+bool Channel::save_session(const Session& session)
+   {
+   return callbacks().tls_session_established(session);
    }
 
 Handshake_State& Channel::create_handshake_state(Protocol_Version version)
@@ -501,7 +514,7 @@ void Channel::send_record_array(uint16_t epoch, uint8_t type, const uint8_t inpu
    * An empty record also works but apparently some implementations do
    * not like this (https://bugzilla.mozilla.org/show_bug.cgi?id=665814)
    *
-   * See http://www.openssl.org/~bodo/tls-cbc.txt for background.
+   * See https://www.openssl.org/~bodo/tls-cbc.txt for background.
    */
 
    auto cipher_state = write_cipher_state_epoch(epoch);
@@ -546,7 +559,7 @@ void Channel::send(const uint8_t buf[], size_t buf_size)
 
 void Channel::send(const std::string& string)
    {
-   this->send(reinterpret_cast<const uint8_t*>(string.c_str()), string.size());
+   this->send(cast_char_ptr_to_uint8(string.data()), string.size());
    }
 
 void Channel::send_alert(const Alert& alert)
@@ -600,7 +613,7 @@ void Channel::secure_renegotiation_check(const Server_Hello* server_hello)
 
    if(auto active = active_state())
       {
-      const bool active_sr = active->client_hello()->secure_renegotiation();
+      const bool active_sr = active->server_hello()->secure_renegotiation();
 
       if(active_sr != secure_renegotiation)
          throw TLS_Exception(Alert::HANDSHAKE_FAILURE,

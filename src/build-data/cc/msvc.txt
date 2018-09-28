@@ -3,21 +3,26 @@ macro_name MSVC
 binary_name cl
 linker_name link
 
-output_to_option "/Fo"
+output_to_object "/Fo"
+output_to_exe "/OUT:"
+
 add_include_dir_option "/I"
 add_lib_dir_option "/LIBPATH:"
 add_lib_option ""
 
 compile_flags "/nologo /c"
 
-optimization_flags "/O2"
-size_optimization_flags "/O1"
+static_analysis_flags "/analyze"
+optimization_flags "/O2 /Oi"
+size_optimization_flags "/O1 /Os"
 
 # for debug info in the object file:
 #debug_info_flags "/Z7"
 
 # for using a PDB file:
 debug_info_flags "/Zi /FS"
+
+preproc_flags "/nologo /EP"
 
 lang_flags "/EHs /GR"
 warning_flags "/W4 /wd4250 /wd4251 /wd4275"
@@ -26,14 +31,14 @@ visibility_build_flags "/DBOTAN_DLL=__declspec(dllexport)"
 visibility_attribute "__declspec(dllimport)"
 
 ar_command lib
-
-makefile_style nmake
+ar_options "/nologo"
+ar_output_to "/OUT:"
 
 <isa_flags>
 sse2   -> ""
 ssse3  -> ""
-sse4.1 -> ""
-sse4.2 -> ""
+sse41 -> ""
+sse42 -> ""
 x86_64:avx2   -> ""
 bmi2   -> ""
 aesni  -> ""

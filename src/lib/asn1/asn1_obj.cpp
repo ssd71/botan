@@ -7,12 +7,73 @@
 
 #include <botan/asn1_obj.h>
 #include <botan/der_enc.h>
-#include <botan/ber_dec.h>
 #include <botan/data_src.h>
-#include <botan/parsing.h>
 #include <botan/internal/stl_util.h>
 
 namespace Botan {
+
+std::string asn1_tag_to_string(ASN1_Tag type)
+   {
+   switch(type)
+      {
+      case Botan::SEQUENCE:
+         return "SEQUENCE";
+
+      case Botan::SET:
+         return "SET";
+
+      case Botan::PRINTABLE_STRING:
+         return "PRINTABLE STRING";
+
+      case Botan::NUMERIC_STRING:
+         return "NUMERIC STRING";
+
+      case Botan::IA5_STRING:
+         return "IA5 STRING";
+
+      case Botan::T61_STRING:
+         return "T61 STRING";
+
+      case Botan::UTF8_STRING:
+         return "UTF8 STRING";
+
+      case Botan::VISIBLE_STRING:
+         return "VISIBLE STRING";
+
+      case Botan::BMP_STRING:
+         return "BMP STRING";
+
+      case Botan::UTC_TIME:
+         return "UTC TIME";
+
+      case Botan::GENERALIZED_TIME:
+         return "GENERALIZED TIME";
+
+      case Botan::OCTET_STRING:
+         return "OCTET STRING";
+
+      case Botan::BIT_STRING:
+         return "BIT STRING";
+
+      case Botan::ENUMERATED:
+         return "ENUMERATED";
+
+      case Botan::INTEGER:
+         return "INTEGER";
+
+      case Botan::NULL_TAG:
+         return "NULL";
+
+      case Botan::OBJECT_ID:
+         return "OBJECT";
+
+      case Botan::BOOLEAN:
+         return "BOOLEAN";
+
+      default:
+         return "TAG(" + std::to_string(static_cast<size_t>(type)) + ")";
+      }
+   }
 
 /*
 * BER Decoding Exceptions

@@ -6,6 +6,7 @@
 */
 
 #include <botan/emsa_x931.h>
+#include <botan/exceptn.h>
 #include <botan/hash_id.h>
 
 namespace Botan {
@@ -41,6 +42,11 @@ secure_vector<uint8_t> emsa2_encoding(const secure_vector<uint8_t>& msg,
    }
 
 }
+
+std::string EMSA_X931::name() const
+   {
+   return "EMSA2(" + m_hash->name() + ")";
+   }
 
 void EMSA_X931::update(const uint8_t input[], size_t length)
    {

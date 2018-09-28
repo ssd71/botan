@@ -10,7 +10,6 @@
 #include <botan/zlib.h>
 #include <botan/internal/compress_utils.h>
 #include <botan/exceptn.h>
-#include <ctime>
 #include <zlib.h>
 
 namespace Botan {
@@ -107,28 +106,28 @@ class Zlib_Decompression_Stream : public Zlib_Stream
          }
    };
 
-class Deflate_Compression_Stream : public Zlib_Compression_Stream
+class Deflate_Compression_Stream final : public Zlib_Compression_Stream
    {
    public:
       Deflate_Compression_Stream(size_t level, int wbits) :
          Zlib_Compression_Stream(level, wbits, -1) {}
    };
 
-class Deflate_Decompression_Stream : public Zlib_Decompression_Stream
+class Deflate_Decompression_Stream final : public Zlib_Decompression_Stream
    {
    public:
       explicit Deflate_Decompression_Stream(int wbits) : Zlib_Decompression_Stream(wbits, -1) {}
    };
 
-class Gzip_Compression_Stream : public Zlib_Compression_Stream
+class Gzip_Compression_Stream final : public Zlib_Compression_Stream
    {
    public:
-      Gzip_Compression_Stream(size_t level, int wbits, uint8_t os_code) :
+      Gzip_Compression_Stream(size_t level, int wbits, uint8_t os_code, uint64_t hdr_time) :
          Zlib_Compression_Stream(level, wbits, 16)
          {
          clear_mem(&m_header, 1);
          m_header.os = os_code;
-         m_header.time = std::time(nullptr);
+         m_header.time = static_cast<uLong>(hdr_time);
 
          int rc = deflateSetHeader(streamp(), &m_header);
          if(rc != Z_OK)
@@ -139,7 +138,7 @@ class Gzip_Compression_Stream : public Zlib_Compression_Stream
       ::gz_header m_header;
    };
 
-class Gzip_Decompression_Stream : public Zlib_Decompression_Stream
+class Gzip_Decompression_Stream final : public Zlib_Decompression_Stream
    {
    public:
       explicit Gzip_Decompression_Stream(int wbits) : Zlib_Decompression_Stream(wbits, 16) {}
@@ -169,7 +168,7 @@ Compression_Stream* Deflate_Decompression::make_stream() const
 
 Compression_Stream* Gzip_Compression::make_stream(size_t level) const
    {
-   return new Gzip_Compression_Stream(level, 15, m_os_code);
+   return new Gzip_Compression_Stream(level, 15, m_os_code, m_hdr_time);
    }
 
 Compression_Stream* Gzip_Decompression::make_stream() const

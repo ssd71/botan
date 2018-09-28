@@ -5,7 +5,9 @@
 */
 
 #include <botan/emsa.h>
+#include <botan/hash.h>
 #include <botan/scan_name.h>
+#include <botan/exceptn.h>
 
 #if defined(BOTAN_HAS_EMSA1)
    #include <botan/emsa1.h>
@@ -33,7 +35,11 @@
 
 namespace Botan {
 
-EMSA::~EMSA() {}
+AlgorithmIdentifier EMSA::config_for_x509(const Private_Key&,
+                                          const std::string&) const
+   {
+   throw Not_Implemented("Encoding " + name() + " not supported for signing X509 objects");
+   }
 
 EMSA* get_emsa(const std::string& algo_spec)
    {
@@ -52,7 +58,11 @@ EMSA* get_emsa(const std::string& algo_spec)
          req.algo_name() == "EMSA-PKCS1-v1_5" ||
          req.algo_name() == "EMSA3")
       {
-      if(req.arg_count() == 1)
+      if(req.arg_count() == 2 && req.arg(0) == "Raw")
+         {
+         return new EMSA_PKCS1v15_Raw(req.arg(1));
+         }
+      else if(req.arg_count() == 1)
          {
          if(req.arg(0) == "Raw")
             {
@@ -71,9 +81,10 @@ EMSA* get_emsa(const std::string& algo_spec)
 
 #if defined(BOTAN_HAS_EMSA_PSSR)
    if(req.algo_name() == "PSSR" ||
-         req.algo_name() == "EMSA-PSS" ||
-         req.algo_name() == "PSS-MGF1" ||
-         req.algo_name() == "EMSA4")
+      req.algo_name() == "EMSA-PSS" ||
+      req.algo_name() == "PSS-MGF1" ||
+      req.algo_name() == "EMSA4" ||
+      req.algo_name() == "PSSR_Raw")
       {
       if(req.arg_count_between(1, 3))
          {
@@ -83,7 +94,11 @@ EMSA* get_emsa(const std::string& algo_spec)
          if(auto h = HashFunction::create(req.arg(0)))
             {
             const size_t salt_size = req.arg_as_integer(2, h->output_length());
-            return new PSSR(h.release(), salt_size);
+
+            if(req.algo_name() == "PSSR_Raw")
+               return new PSSR_Raw(h.release(), salt_size);
+            else
+               return new PSSR(h.release(), salt_size);
             }
          }
       }
@@ -132,9 +147,18 @@ EMSA* get_emsa(const std::string& algo_spec)
 #endif
 
 #if defined(BOTAN_HAS_EMSA_RAW)
-   if(req.algo_name() == "Raw" && req.arg_count() == 0)
+   if(req.algo_name() == "Raw")
       {
-      return new EMSA_Raw;
+      if(req.arg_count() == 0)
+         {
+         return new EMSA_Raw;
+         }
+      else
+         {
+         auto hash = HashFunction::create(req.arg(0));
+         if(hash)
+            return new EMSA_Raw(hash->output_length());
+         }
       }
 #endif
 

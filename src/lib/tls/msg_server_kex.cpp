@@ -1,6 +1,7 @@
 /*
 * Server Key Exchange Message
 * (C) 2004-2010,2012,2015,2016 Jack Lloyd
+*     2017 Harry Reimann, Rohde & Schwarz Cybersecurity
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -13,7 +14,6 @@
 #include <botan/credentials_manager.h>
 #include <botan/loadstor.h>
 #include <botan/pubkey.h>
-#include <botan/oids.h>
 
 #include <botan/dh.h>
 #include <botan/ecdh.h>
@@ -57,7 +57,28 @@ Server_Key_Exchange::Server_Key_Exchange(Handshake_IO& io,
 
    if(kex_algo == "DH" || kex_algo == "DHE_PSK")
       {
-      std::unique_ptr<DH_PrivateKey> dh(new DH_PrivateKey(rng, DL_Group(policy.dh_group())));
+      const std::vector<std::string>& dh_groups =
+               state.client_hello()->supported_dh_groups();
+
+      std::string group_name;
+
+      // if the client does not send any DH groups in
+      // the supported groups extension, but does offer DH ciphersuites,
+      // we select a group arbitrarily
+      if (dh_groups.empty())
+         {
+         group_name = policy.dh_group();
+         }
+      else
+         {
+         group_name = policy.choose_dh_group(dh_groups);
+         }
+
+      if (group_name.empty())
+         throw TLS_Exception(Alert::HANDSHAKE_FAILURE,
+               "Could not agree on a DH group with the client");
+
+      std::unique_ptr<DH_PrivateKey> dh(new DH_PrivateKey(rng, DL_Group(group_name)));
 
       append_tls_length_value(m_params, BigInt::encode(dh->get_domain().get_p()), 2);
       append_tls_length_value(m_params, BigInt::encode(dh->get_domain().get_g()), 2);
@@ -165,12 +186,14 @@ Server_Key_Exchange::Server_Key_Exchange(Handshake_IO& io,
       std::pair<std::string, Signature_Format> format =
          state.choose_sig_format(*signing_key, m_hash_algo, m_sig_algo, false, policy);
 
-      PK_Signer signer(*signing_key, rng, format.first, format.second);
+      std::vector<uint8_t> buf = state.client_hello()->random();
 
-      signer.update(state.client_hello()->random());
-      signer.update(state.server_hello()->random());
-      signer.update(params());
-      m_signature = signer.signature(rng);
+      buf += state.server_hello()->random();
+      buf += params();
+
+      m_signature =
+         state.callbacks().tls_sign_message(*signing_key, rng,
+                                            format.first, format.second, buf);
       }
 
    state.hash().update(io.send(*this));
@@ -245,8 +268,6 @@ Server_Key_Exchange::Server_Key_Exchange(const std::vector<uint8_t>& buf,
    reader.assert_done();
    }
 
-Server_Key_Exchange::~Server_Key_Exchange() {}
-
 /**
 * Serialize a Server Key Exchange message
 */
@@ -282,13 +303,14 @@ bool Server_Key_Exchange::verify(const Public_Key& server_key,
       state.parse_sig_format(server_key, m_hash_algo, m_sig_algo,
                              false, policy);
 
-   PK_Verifier verifier(server_key, format.first, format.second);
+   std::vector<uint8_t> buf = state.client_hello()->random();
 
-   verifier.update(state.client_hello()->random());
-   verifier.update(state.server_hello()->random());
-   verifier.update(params());
+   buf += state.server_hello()->random();
+   buf += params();
 
-   const bool signature_valid = verifier.check_signature(m_signature);
+   const bool signature_valid =
+      state.callbacks().tls_verify_message(server_key, format.first, format.second,
+                                           buf, m_signature);
 
 #if defined(BOTAN_UNSAFE_FUZZER_MODE)
    return true;

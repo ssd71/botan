@@ -19,10 +19,12 @@
 
 #if defined(BOTAN_HAS_GMAC)
   #include <botan/gmac.h>
+  #include <botan/block_cipher.h>
 #endif
 
 #if defined(BOTAN_HAS_HMAC)
   #include <botan/hmac.h>
+  #include <botan/hash.h>
 #endif
 
 #if defined(BOTAN_HAS_POLY1305)
@@ -155,7 +157,7 @@ bool MessageAuthenticationCode::verify_mac(const uint8_t mac[], size_t length)
    if(our_mac.size() != length)
       return false;
 
-   return same_mem(our_mac.data(), mac, length);
+   return constant_time_compare(our_mac.data(), mac, length);
    }
 
 }

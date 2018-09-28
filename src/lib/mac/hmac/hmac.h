@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_HMAC_H__
-#define BOTAN_HMAC_H__
+#ifndef BOTAN_HMAC_H_
+#define BOTAN_HMAC_H_
 
 #include <botan/mac.h>
 #include <botan/hash.h>
@@ -16,7 +16,7 @@ namespace Botan {
 /**
 * HMAC
 */
-class BOTAN_DLL HMAC final : public MessageAuthenticationCode
+class BOTAN_PUBLIC_API(2,0) HMAC final : public MessageAuthenticationCode
    {
    public:
       void clear() override;
@@ -25,11 +25,7 @@ class BOTAN_DLL HMAC final : public MessageAuthenticationCode
 
       size_t output_length() const override { return m_hash->output_length(); }
 
-      Key_Length_Specification key_spec() const override
-         {
-         // Absurd max length here is to support PBKDF2
-         return Key_Length_Specification(0, 512);
-         }
+      Key_Length_Specification key_spec() const override;
 
       /**
       * @param hash the hash to use for HMACing

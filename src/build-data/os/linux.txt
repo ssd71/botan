@@ -4,13 +4,11 @@ soname_suffix "so"
 
 <target_features>
 clock_gettime
-gettimeofday
 posix_mlock
 gmtime_r
 dlopen
 getauxval
 readdir
-timegm
 sockets
 threads
 filesystem

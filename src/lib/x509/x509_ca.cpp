@@ -6,18 +6,20 @@
 */
 
 #include <botan/x509_ca.h>
+#include <botan/x509self.h>
+#include <botan/pkcs10.h>
 #include <botan/pubkey.h>
 #include <botan/der_enc.h>
-#include <botan/ber_dec.h>
 #include <botan/bigint.h>
 #include <botan/parsing.h>
 #include <botan/oids.h>
 #include <botan/hash.h>
 #include <botan/key_constraint.h>
+#include <botan/emsa.h>
+#include <botan/scan_name.h>
 #include <algorithm>
-#include <typeinfo>
 #include <iterator>
-#include <set>
+#include <map>
 
 namespace Botan {
 
@@ -27,12 +29,39 @@ namespace Botan {
 X509_CA::X509_CA(const X509_Certificate& c,
                  const Private_Key& key,
                  const std::string& hash_fn,
-                 RandomNumberGenerator& rng) : m_cert(c)
+                 RandomNumberGenerator& rng) :
+   m_ca_cert(c),
+   m_hash_fn(hash_fn)
    {
-   if(!m_cert.is_CA_cert())
+   if(!m_ca_cert.is_CA_cert())
       throw Invalid_Argument("X509_CA: This certificate is not for a CA");
 
-   m_signer = choose_sig_format(key, rng, hash_fn, m_ca_sig_algo);
+   std::map<std::string,std::string> opts;
+   // constructor without additional options: use the padding used in the CA certificate
+   // sig_oid_str = <sig_alg>/<padding>, so padding with all its options will look
+   // like a cipher mode to the scanner
+   std::string sig_oid_str = OIDS::lookup(c.signature_algorithm().oid);
+   SCAN_Name scanner(sig_oid_str);
+   std::string pad = scanner.cipher_mode();
+   if(!pad.empty())
+      opts.insert({"padding",pad});
+
+   m_signer.reset(choose_sig_format(key, opts, rng, hash_fn, m_ca_sig_algo));
+   }
+
+/*
+* Load the certificate and private key, and additional options
+*/
+X509_CA::X509_CA(const X509_Certificate& ca_certificate,
+        const Private_Key& key,
+        const std::map<std::string,std::string>& opts,
+        const std::string& hash_fn,
+        RandomNumberGenerator& rng) : m_ca_cert(ca_certificate), m_hash_fn(hash_fn)
+   {
+   if(!m_ca_cert.is_CA_cert())
+      throw Invalid_Argument("X509_CA: This certificate is not for a CA");
+
+   m_signer.reset(choose_sig_format(key, opts, rng, hash_fn, m_ca_sig_algo));
    }
 
 /*
@@ -40,7 +69,7 @@ X509_CA::X509_CA(const X509_Certificate& c,
 */
 X509_CA::~X509_CA()
    {
-   delete m_signer;
+   /* for unique_ptr */
    }
 
 /*
@@ -49,7 +78,7 @@ X509_CA::~X509_CA()
 X509_Certificate X509_CA::sign_request(const PKCS10_Request& req,
                                        RandomNumberGenerator& rng,
                                        const X509_Time& not_before,
-                                       const X509_Time& not_after)
+                                       const X509_Time& not_after) const
    {
    Key_Constraints constraints;
    if(req.is_CA())
@@ -74,8 +103,8 @@ X509_Certificate X509_CA::sign_request(const PKCS10_Request& req,
       extensions.replace(new Cert_Extension::Key_Usage(constraints), true);
       }
 
-   extensions.replace(new Cert_Extension::Authority_Key_ID(m_cert.subject_key_id()));
-   extensions.replace(new Cert_Extension::Subject_Key_ID(req.raw_public_key()));
+   extensions.replace(new Cert_Extension::Authority_Key_ID(m_ca_cert.subject_key_id()));
+   extensions.replace(new Cert_Extension::Subject_Key_ID(req.raw_public_key(), m_hash_fn));
 
    extensions.replace(
       new Cert_Extension::Subject_Alternative_Name(req.subject_alt_name()));
@@ -83,10 +112,10 @@ X509_Certificate X509_CA::sign_request(const PKCS10_Request& req,
    extensions.replace(
       new Cert_Extension::Extended_Key_Usage(req.ex_constraints()));
 
-   return make_cert(m_signer, rng, m_ca_sig_algo,
+   return make_cert(m_signer.get(), rng, m_ca_sig_algo,
                     req.raw_public_key(),
                     not_before, not_after,
-                    m_cert.subject_dn(), req.subject_dn(),
+                    m_ca_cert.subject_dn(), req.subject_dn(),
                     extensions);
    }
 
@@ -146,8 +175,9 @@ X509_Certificate X509_CA::make_cert(PK_Signer* signer,
 X509_CRL X509_CA::new_crl(RandomNumberGenerator& rng,
                           uint32_t next_update) const
    {
-   std::vector<CRL_Entry> empty;
-   return make_crl(empty, 1, next_update, rng);
+   return new_crl(rng,
+                  std::chrono::system_clock::now(),
+                  std::chrono::seconds(next_update));
    }
 
 /*
@@ -158,43 +188,59 @@ X509_CRL X509_CA::update_crl(const X509_CRL& crl,
                              RandomNumberGenerator& rng,
                              uint32_t next_update) const
    {
-   std::vector<CRL_Entry> revoked = crl.get_revoked();
+   return update_crl(crl, new_revoked, rng,
+                     std::chrono::system_clock::now(),
+                     std::chrono::seconds(next_update));
+   }
+
+
+X509_CRL X509_CA::new_crl(RandomNumberGenerator& rng,
+                          std::chrono::system_clock::time_point issue_time,
+                          std::chrono::seconds next_update) const
+   {
+   std::vector<CRL_Entry> empty;
+   return make_crl(empty, 1, rng, issue_time, next_update);
+   }
+
+X509_CRL X509_CA::update_crl(const X509_CRL& last_crl,
+                             const std::vector<CRL_Entry>& new_revoked,
+                             RandomNumberGenerator& rng,
+                             std::chrono::system_clock::time_point issue_time,
+                             std::chrono::seconds next_update) const
+   {
+   std::vector<CRL_Entry> revoked = last_crl.get_revoked();
 
    std::copy(new_revoked.begin(), new_revoked.end(),
              std::back_inserter(revoked));
 
-   return make_crl(revoked, crl.crl_number() + 1, next_update, rng);
+   return make_crl(revoked, last_crl.crl_number() + 1, rng, issue_time, next_update);
    }
 
 /*
 * Create a CRL
 */
 X509_CRL X509_CA::make_crl(const std::vector<CRL_Entry>& revoked,
-                           uint32_t crl_number, uint32_t next_update,
-                           RandomNumberGenerator& rng) const
+                           uint32_t crl_number,
+                           RandomNumberGenerator& rng,
+                           std::chrono::system_clock::time_point issue_time,
+                           std::chrono::seconds next_update) const
    {
    const size_t X509_CRL_VERSION = 2;
 
-   if(next_update == 0)
-      next_update = timespec_to_u32bit("7d");
-
-   // Totally stupid: ties encoding logic to the return of std::time!!
-   auto current_time = std::chrono::system_clock::now();
-   auto expire_time = current_time + std::chrono::seconds(next_update);
+   auto expire_time = issue_time + next_update;
 
    Extensions extensions;
-   extensions.add(
-      new Cert_Extension::Authority_Key_ID(m_cert.subject_key_id()));
+   extensions.add(new Cert_Extension::Authority_Key_ID(m_ca_cert.subject_key_id()));
    extensions.add(new Cert_Extension::CRL_Number(crl_number));
 
    // clang-format off
    const std::vector<uint8_t> crl = X509_Object::make_signed(
-      m_signer, rng, m_ca_sig_algo,
+      m_signer.get(), rng, m_ca_sig_algo,
       DER_Encoder().start_cons(SEQUENCE)
          .encode(X509_CRL_VERSION-1)
          .encode(m_ca_sig_algo)
-         .encode(m_cert.issuer_dn())
-         .encode(X509_Time(current_time))
+         .encode(m_ca_cert.subject_dn())
+         .encode(X509_Time(issue_time))
          .encode(X509_Time(expire_time))
          .encode_if(revoked.size() > 0,
               DER_Encoder()
@@ -219,13 +265,27 @@ X509_CRL X509_CA::make_crl(const std::vector<CRL_Entry>& revoked,
 */
 X509_Certificate X509_CA::ca_certificate() const
    {
-   return m_cert;
+   return m_ca_cert;
+   }
+
+/*
+* Choose a signing format for the key
+*/
+
+PK_Signer* choose_sig_format(const Private_Key& key,
+                             RandomNumberGenerator& rng,
+                             const std::string& hash_fn,
+                             AlgorithmIdentifier& sig_algo)
+   {
+   return choose_sig_format(key, std::map<std::string,std::string>(),
+                            rng, hash_fn, sig_algo);
    }
 
 /*
 * Choose a signing format for the key
 */
 PK_Signer* choose_sig_format(const Private_Key& key,
+                             const std::map<std::string,std::string>& opts,
                              RandomNumberGenerator& rng,
                              const std::string& hash_fn,
                              AlgorithmIdentifier& sig_algo)
@@ -233,11 +293,14 @@ PK_Signer* choose_sig_format(const Private_Key& key,
    const std::string algo_name = key.algo_name();
 
    std::unique_ptr<HashFunction> hash(HashFunction::create_or_throw(hash_fn));
+   std::string hash_name = hash->name();
 
+   // check algo_name and set default
    std::string padding;
    if(algo_name == "RSA")
       {
-      padding = "EMSA3";
+      // set to EMSA3 for compatibility reasons, originally it was the only option
+      padding = "EMSA3(" + hash_name + ")";
       }
    else if(algo_name == "DSA" ||
            algo_name == "ECDSA" ||
@@ -245,21 +308,45 @@ PK_Signer* choose_sig_format(const Private_Key& key,
            algo_name == "ECKCDSA" ||
            algo_name == "GOST-34.10")
       {
-      padding = "EMSA1";
+      padding = "EMSA1(" + hash_name + ")";
       }
    else
       {
       throw Invalid_Argument("Unknown X.509 signing key type: " + algo_name);
       }
 
+   if(opts.count("padding") > 0 && !opts.at("padding").empty())
+      {
+      padding = opts.at("padding");
+      }
+
+   // try to construct an EMSA object from the padding options or default
+   std::unique_ptr<EMSA> emsa = nullptr;
+   try
+      {
+      emsa.reset(get_emsa(padding));
+      }
+   /*
+    * get_emsa will throw if opts contains {"padding",<valid_padding>} but
+    * <valid_padding> does not specify a hash function.
+    * Omitting it is valid since it needs to be identical to hash_fn.
+    * If it still throws, something happened that we cannot repair here,
+    * e.g. the algorithm/padding combination is not supported.
+    */
+   catch(...)
+      {
+      emsa.reset(get_emsa(padding + "(" + hash_fn + ")"));
+      }
+   if(emsa == nullptr)
+      {
+      throw Invalid_Argument("Could not parse padding scheme " + padding);
+      }
+
    const Signature_Format format = (key.message_parts() > 1) ? DER_SEQUENCE : IEEE_1363;
 
-   padding = padding + "(" + hash->name() + ")";
+   sig_algo = emsa->config_for_x509(key, hash_name);
 
-   sig_algo.oid = OIDS::lookup(algo_name + "/" + padding);
-   sig_algo.parameters = key.algorithm_identifier().parameters;
-
-   return new PK_Signer(key, rng, padding, format);
+   return new PK_Signer(key, rng, emsa->name(), format);
    }
 
 }

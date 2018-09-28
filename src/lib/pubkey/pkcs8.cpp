@@ -6,6 +6,7 @@
 */
 
 #include <botan/pkcs8.h>
+#include <botan/rng.h>
 #include <botan/der_enc.h>
 #include <botan/ber_dec.h>
 #include <botan/alg_id.h>
@@ -100,9 +101,9 @@ secure_vector<uint8_t> PKCS8_decode(
       {
       if(is_encrypted)
          {
-         if(OIDS::lookup(pbe_alg_id.oid) != "PBE-PKCS5v20")
-            throw Exception("Unknown PBE type " + pbe_alg_id.oid.as_string());
-         key = pbes2_decrypt(key_data, get_passphrase(), pbe_alg_id.parameters);
+         if(OIDS::lookup(pbe_alg_id.get_oid()) != "PBE-PKCS5v20")
+            throw Exception("Unknown PBE type " + pbe_alg_id.get_oid().as_string());
+         key = pbes2_decrypt(key_data, get_passphrase(), pbe_alg_id.get_parameters());
          }
       else
          key = key_data;
@@ -175,8 +176,8 @@ std::vector<uint8_t> BER_encode(const Private_Key& key,
    const auto pbe_params = choose_pbe_params(pbe_algo, key.algo_name());
 
    const std::pair<AlgorithmIdentifier, std::vector<uint8_t>> pbe_info =
-      pbes2_encrypt(PKCS8::BER_encode(key), pass, msec,
-                    pbe_params.first, pbe_params.second, rng);
+      pbes2_encrypt_msec(PKCS8::BER_encode(key), pass, msec, nullptr,
+                         pbe_params.first, pbe_params.second, rng);
 
    return DER_Encoder()
          .start_cons(SEQUENCE)
@@ -202,28 +203,149 @@ std::string PEM_encode(const Private_Key& key,
                            "ENCRYPTED PRIVATE KEY");
    }
 
+/*
+* BER encode a PKCS #8 private key, encrypted
+*/
+std::vector<uint8_t> BER_encode_encrypted_pbkdf_iter(const Private_Key& key,
+                                                     RandomNumberGenerator& rng,
+                                                     const std::string& pass,
+                                                     size_t pbkdf_iterations,
+                                                     const std::string& cipher,
+                                                     const std::string& pbkdf_hash)
+   {
+   const std::pair<AlgorithmIdentifier, std::vector<uint8_t>> pbe_info =
+      pbes2_encrypt_iter(key.private_key_info(),
+                         pass, pbkdf_iterations,
+                         cipher.empty() ? "AES-256/CBC" : cipher,
+                         pbkdf_hash.empty() ? "SHA-256" : pbkdf_hash,
+                         rng);
+
+   return DER_Encoder()
+         .start_cons(SEQUENCE)
+            .encode(pbe_info.first)
+            .encode(pbe_info.second, OCTET_STRING)
+         .end_cons()
+      .get_contents_unlocked();
+   }
+
+/*
+* PEM encode a PKCS #8 private key, encrypted
+*/
+std::string PEM_encode_encrypted_pbkdf_iter(const Private_Key& key,
+                                            RandomNumberGenerator& rng,
+                                            const std::string& pass,
+                                            size_t pbkdf_iterations,
+                                            const std::string& cipher,
+                                            const std::string& pbkdf_hash)
+   {
+   return PEM_Code::encode(
+      PKCS8::BER_encode_encrypted_pbkdf_iter(key, rng, pass, pbkdf_iterations, cipher, pbkdf_hash),
+      "ENCRYPTED PRIVATE KEY");
+   }
+
+/*
+* BER encode a PKCS #8 private key, encrypted
+*/
+std::vector<uint8_t> BER_encode_encrypted_pbkdf_msec(const Private_Key& key,
+                                                     RandomNumberGenerator& rng,
+                                                     const std::string& pass,
+                                                     std::chrono::milliseconds pbkdf_msec,
+                                                     size_t* pbkdf_iterations,
+                                                     const std::string& cipher,
+                                                     const std::string& pbkdf_hash)
+   {
+   const std::pair<AlgorithmIdentifier, std::vector<uint8_t>> pbe_info =
+      pbes2_encrypt_msec(key.private_key_info(), pass,
+                         pbkdf_msec, pbkdf_iterations,
+                         cipher.empty() ? "AES-256/CBC" : cipher,
+                         pbkdf_hash.empty() ? "SHA-256" : pbkdf_hash,
+                         rng);
+
+   return DER_Encoder()
+         .start_cons(SEQUENCE)
+            .encode(pbe_info.first)
+            .encode(pbe_info.second, OCTET_STRING)
+         .end_cons()
+      .get_contents_unlocked();
+   }
+
+/*
+* PEM encode a PKCS #8 private key, encrypted
+*/
+std::string PEM_encode_encrypted_pbkdf_msec(const Private_Key& key,
+                                            RandomNumberGenerator& rng,
+                                            const std::string& pass,
+                                            std::chrono::milliseconds pbkdf_msec,
+                                            size_t* pbkdf_iterations,
+                                            const std::string& cipher,
+                                            const std::string& pbkdf_hash)
+   {
+   return PEM_Code::encode(
+      PKCS8::BER_encode_encrypted_pbkdf_msec(key, rng, pass, pbkdf_msec, pbkdf_iterations, cipher, pbkdf_hash),
+      "ENCRYPTED PRIVATE KEY");
+   }
+
 namespace {
 
 /*
 * Extract a private key (encrypted/unencrypted) and return it
 */
-Private_Key* load_key(DataSource& source,
-                      RandomNumberGenerator& /*rng*/,
-                      std::function<std::string ()> get_pass,
-                      bool is_encrypted)
+std::unique_ptr<Private_Key>
+load_key(DataSource& source,
+         std::function<std::string ()> get_pass,
+         bool is_encrypted)
    {
    AlgorithmIdentifier alg_id;
    secure_vector<uint8_t> pkcs8_key = PKCS8_decode(source, get_pass, alg_id, is_encrypted);
 
-   const std::string alg_name = OIDS::lookup(alg_id.oid);
-   if(alg_name.empty() || alg_name == alg_id.oid.as_string())
+   const std::string alg_name = OIDS::lookup(alg_id.get_oid());
+   if(alg_name.empty() || alg_name == alg_id.get_oid().as_string())
       throw PKCS8_Exception("Unknown algorithm OID: " +
-                            alg_id.oid.as_string());
+                            alg_id.get_oid().as_string());
 
-   return load_private_key(alg_id, pkcs8_key).release();
+   return load_private_key(alg_id, pkcs8_key);
    }
 
 }
+
+/*
+* Extract an encrypted private key and return it
+*/
+std::unique_ptr<Private_Key> load_key(DataSource& source,
+                      std::function<std::string ()> get_pass)
+   {
+   return load_key(source, get_pass, true);
+   }
+
+/*
+* Extract an encrypted private key and return it
+*/
+std::unique_ptr<Private_Key> load_key(DataSource& source,
+                      const std::string& pass)
+   {
+   return load_key(source, [pass]() { return pass; }, true);
+   }
+
+/*
+* Extract an unencrypted private key and return it
+*/
+std::unique_ptr<Private_Key> load_key(DataSource& source)
+   {
+   auto fail_fn = []() -> std::string {
+      throw PKCS8_Exception("Internal error: Attempt to read password for unencrypted key");
+   };
+
+   return load_key(source, fail_fn, false);
+   }
+
+/*
+* Make a copy of this private key
+*/
+std::unique_ptr<Private_Key> copy_key(const Private_Key& key)
+   {
+   DataSource_Memory source(PEM_encode(key));
+   return PKCS8::load_key(source);
+   }
 
 /*
 * Extract an encrypted private key and return it
@@ -232,7 +354,8 @@ Private_Key* load_key(DataSource& source,
                       RandomNumberGenerator& rng,
                       std::function<std::string ()> get_pass)
    {
-   return load_key(source, rng, get_pass, true);
+   BOTAN_UNUSED(rng);
+   return PKCS8::load_key(source, get_pass).release();
    }
 
 /*
@@ -242,7 +365,8 @@ Private_Key* load_key(DataSource& source,
                       RandomNumberGenerator& rng,
                       const std::string& pass)
    {
-   return load_key(source, rng, [pass]() { return pass; }, true);
+   BOTAN_UNUSED(rng);
+   return PKCS8::load_key(source, pass).release();
    }
 
 /*
@@ -251,8 +375,8 @@ Private_Key* load_key(DataSource& source,
 Private_Key* load_key(DataSource& source,
                       RandomNumberGenerator& rng)
    {
-   return load_key(source, rng, []() -> std::string {
-      throw PKCS8_Exception( "Internal error: Attempt to read password for unencrypted key" );}, false);
+   BOTAN_UNUSED(rng);
+   return PKCS8::load_key(source).release();
    }
 
 #if defined(BOTAN_TARGET_OS_HAS_FILESYSTEM)
@@ -264,8 +388,9 @@ Private_Key* load_key(const std::string& fsname,
                       RandomNumberGenerator& rng,
                       std::function<std::string ()> get_pass)
    {
-   DataSource_Stream source(fsname, true);
-   return load_key(source, rng, get_pass, true);
+   BOTAN_UNUSED(rng);
+   DataSource_Stream in(fsname);
+   return PKCS8::load_key(in, get_pass).release();
    }
 
 /*
@@ -275,7 +400,9 @@ Private_Key* load_key(const std::string& fsname,
                       RandomNumberGenerator& rng,
                       const std::string& pass)
    {
-   return PKCS8::load_key(fsname, rng, [pass]() { return pass; });
+   BOTAN_UNUSED(rng);
+   DataSource_Stream in(fsname);
+   return PKCS8::load_key(in, [pass]() { return pass; }).release();
    }
 
 /*
@@ -284,9 +411,9 @@ Private_Key* load_key(const std::string& fsname,
 Private_Key* load_key(const std::string& fsname,
                       RandomNumberGenerator& rng)
    {
-   DataSource_Stream source(fsname, true);
-   return load_key(source, rng, []() -> std::string {
-      throw PKCS8_Exception( "Internal error: Attempt to read password for unencrypted key" );}, false);
+   BOTAN_UNUSED(rng);
+   DataSource_Stream in(fsname);
+   return PKCS8::load_key(in).release();
    }
 #endif
 
@@ -296,9 +423,11 @@ Private_Key* load_key(const std::string& fsname,
 Private_Key* copy_key(const Private_Key& key,
                       RandomNumberGenerator& rng)
    {
-   DataSource_Memory source(PEM_encode(key));
-   return PKCS8::load_key(source, rng);
+   BOTAN_UNUSED(rng);
+   return PKCS8::copy_key(key).release();
    }
+
+
 
 }
 

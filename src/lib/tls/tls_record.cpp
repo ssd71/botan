@@ -35,6 +35,9 @@ Connection_Cipher_State::Connection_Cipher_State(Protocol_Version version,
    m_nonce_bytes_from_handshake(suite.nonce_bytes_from_handshake()),
    m_nonce_bytes_from_record(suite.nonce_bytes_from_record())
    {
+   BOTAN_UNUSED(version);
+   BOTAN_UNUSED(uses_encrypt_then_mac);
+
    SymmetricKey mac_key, cipher_key;
    InitializationVector iv;
 
@@ -75,12 +78,15 @@ Connection_Cipher_State::Connection_Cipher_State(Protocol_Version version,
       {
 #if defined(BOTAN_HAS_TLS_CBC)
       // legacy CBC+HMAC mode
+      auto mac = MessageAuthenticationCode::create_or_throw("HMAC(" + suite.mac_algo() + ")");
+      auto cipher = BlockCipher::create_or_throw(suite.cipher_algo());
+
       if(our_side)
          {
          m_aead.reset(new TLS_CBC_HMAC_AEAD_Encryption(
-                         suite.cipher_algo(),
+                         std::move(cipher),
+                         std::move(mac),
                          suite.cipher_keylen(),
-                         suite.mac_algo(),
                          suite.mac_keylen(),
                          version.supports_explicit_cbc_ivs(),
                          uses_encrypt_then_mac));
@@ -88,9 +94,9 @@ Connection_Cipher_State::Connection_Cipher_State(Protocol_Version version,
       else
          {
          m_aead.reset(new TLS_CBC_HMAC_AEAD_Decryption(
-                         suite.cipher_algo(),
+                         std::move(cipher),
+                         std::move(mac),
                          suite.cipher_keylen(),
-                         suite.mac_algo(),
                          suite.mac_keylen(),
                          version.supports_explicit_cbc_ivs(),
                          uses_encrypt_then_mac));
@@ -202,7 +208,7 @@ namespace {
 
 inline void append_u16_len(secure_vector<uint8_t>& output, size_t len_field)
    {
-   const uint16_t len16 = len_field;
+   const uint16_t len16 = static_cast<uint16_t>(len_field);
    BOTAN_ASSERT_EQUAL(len_field, len16, "No truncation");
    output.push_back(get_byte(0, len16));
    output.push_back(get_byte(1, len16));
@@ -302,10 +308,23 @@ void decrypt_record(secure_vector<uint8_t>& output,
    const uint8_t* msg = &record_contents[cs.nonce_bytes_from_record()];
    const size_t msg_length = record_len - cs.nonce_bytes_from_record();
 
+   /*
+   * This early rejection is based just on public information (length of the
+   * encrypted packet) and so does not leak any information. We used to use
+   * decode_error here which really is more appropriate, but that confuses some
+   * tools which are attempting automated detection of padding oracles,
+   * including older versions of TLS-Attacker.
+   */
+   if(msg_length < aead->minimum_final_size())
+      throw TLS_Exception(Alert::BAD_RECORD_MAC, "AEAD packet is shorter than the tag");
+
    const size_t ptext_size = aead->output_length(msg_length);
 
    aead->set_associated_data_vec(
-      cs.format_ad(record_sequence, record_type, record_version, static_cast<uint16_t>(ptext_size))
+      cs.format_ad(record_sequence,
+                   static_cast<uint8_t>(record_type),
+                   record_version,
+                   static_cast<uint16_t>(ptext_size))
       );
 
    aead->start(nonce);

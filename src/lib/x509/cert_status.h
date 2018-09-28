@@ -5,10 +5,10 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_X509_PATH_RESULT_H__
-#define BOTAN_X509_PATH_RESULT_H__
+#ifndef BOTAN_X509_PATH_RESULT_H_
+#define BOTAN_X509_PATH_RESULT_H_
 
-#include <botan/build.h>
+#include <botan/types.h>
 
 namespace Botan {
 
@@ -25,12 +25,18 @@ enum class Certificate_Status_Code {
    VALID_CRL_CHECKED = 3,
    OCSP_NO_HTTP = 4,
 
+   // Warnings
+   FIRST_WARNING_STATUS = 500,
+   CERT_SERIAL_NEGATIVE = 500,
+   DN_TOO_LONG = 501,
+
    // Errors
    FIRST_ERROR_STATUS = 1000,
 
    SIGNATURE_METHOD_TOO_WEAK = 1000,
    UNTRUSTED_HASH = 1001,
    NO_REVOCATION_DATA = 1002,
+   NO_MATCHING_CRLDP = 1003,
 
    // Time problems
    CERT_NOT_YET_VALID = 2000,
@@ -62,16 +68,21 @@ enum class Certificate_Status_Code {
    // Other problems
    CERT_NAME_NOMATCH = 4008,
    UNKNOWN_CRITICAL_EXTENSION = 4009,
+   DUPLICATE_CERT_EXTENSION = 4010,
    OCSP_SIGNATURE_ERROR = 4501,
    OCSP_ISSUER_NOT_FOUND = 4502,
    OCSP_RESPONSE_MISSING_KEYUSAGE = 4503,
    OCSP_RESPONSE_INVALID = 4504,
+   EXT_IN_V1_V2_CERT = 4505,
+   DUPLICATE_CERT_POLICY = 4506,
 
    // Hard failures
    CERT_IS_REVOKED = 5000,
    CRL_BAD_SIGNATURE = 5001,
    SIGNATURE_ERROR = 5002,
    CERT_PUBKEY_INVALID = 5003,
+   SIGNATURE_ALGO_UNKNOWN = 5004,
+   SIGNATURE_ALGO_BAD_PARAMS = 5005
 };
 
 /**
@@ -79,7 +90,7 @@ enum class Certificate_Status_Code {
 * @param code the certifcate status
 * @return string literal constant, or nullptr if code unknown
 */
-BOTAN_DLL const char* to_string(Certificate_Status_Code code);
+BOTAN_PUBLIC_API(2,0) const char* to_string(Certificate_Status_Code code);
 
 }
 

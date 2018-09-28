@@ -1,6 +1,6 @@
 /*
 * OS and machine specific utility functions
-* (C) 2015,2016 Jack Lloyd
+* (C) 2015,2016,2017 Jack Lloyd
 * (C) 2016 Daniel Neus
 *
 * Botan is released under the Simplified BSD License (see license.txt)
@@ -10,23 +10,56 @@
 #include <botan/cpuid.h>
 #include <botan/exceptn.h>
 #include <botan/mem_ops.h>
+
 #include <chrono>
+#include <cstdlib>
+
+#if defined(BOTAN_TARGET_OS_HAS_EXPLICIT_BZERO)
+  #include <string.h>
+#endif
 
 #if defined(BOTAN_TARGET_OS_TYPE_IS_UNIX)
   #include <sys/types.h>
-  #include <sys/mman.h>
   #include <sys/resource.h>
-  #include <unistd.h>
+  #include <sys/mman.h>
   #include <signal.h>
   #include <setjmp.h>
-#endif
-
-#if defined(BOTAN_TARGET_OS_IS_WINDOWS) || defined(BOTAN_TARGET_OS_IS_MINGW)
+  #include <unistd.h>
+  #include <errno.h>
+#elif defined(BOTAN_TARGET_OS_TYPE_IS_WINDOWS)
   #define NOMINMAX 1
   #include <windows.h>
 #endif
 
 namespace Botan {
+
+// Not defined in OS namespace for historical reasons
+void secure_scrub_memory(void* ptr, size_t n)
+   {
+#if defined(BOTAN_TARGET_OS_HAS_RTLSECUREZEROMEMORY)
+   ::RtlSecureZeroMemory(ptr, n);
+
+#elif defined(BOTAN_TARGET_OS_HAS_EXPLICIT_BZERO)
+   ::explicit_bzero(ptr, n);
+
+#elif defined(BOTAN_USE_VOLATILE_MEMSET_FOR_ZERO) && (BOTAN_USE_VOLATILE_MEMSET_FOR_ZERO == 1)
+   /*
+   Call memset through a static volatile pointer, which the compiler
+   should not elide. This construct should be safe in conforming
+   compilers, but who knows. I did confirm that on x86-64 GCC 6.1 and
+   Clang 3.8 both create code that saves the memset address in the
+   data segment and uncondtionally loads and jumps to that address.
+   */
+   static void* (*const volatile memset_ptr)(void*, int, size_t) = std::memset;
+   (memset_ptr)(ptr, 0, n);
+#else
+
+   volatile uint8_t* p = reinterpret_cast<volatile uint8_t*>(ptr);
+
+   for(size_t i = 0; i != n; ++i)
+      p[i] = 0;
+#endif
+   }
 
 uint32_t OS::get_process_id()
    {
@@ -34,7 +67,7 @@ uint32_t OS::get_process_id()
    return ::getpid();
 #elif defined(BOTAN_TARGET_OS_IS_WINDOWS) || defined(BOTAN_TARGET_OS_IS_MINGW)
    return ::GetCurrentProcessId();
-#elif defined(BOTAN_TARGET_OS_TYPE_IS_UNIKERNEL)
+#elif defined(BOTAN_TARGET_OS_TYPE_IS_UNIKERNEL) || defined(BOTAN_TARGET_OS_IS_LLVM)
    return 0; // truly no meaningful value
 #else
    #error "Missing get_process_id"
@@ -43,19 +76,22 @@ uint32_t OS::get_process_id()
 
 uint64_t OS::get_processor_timestamp()
    {
+   uint64_t rtc = 0;
+
 #if defined(BOTAN_TARGET_OS_HAS_QUERY_PERF_COUNTER)
    LARGE_INTEGER tv;
    ::QueryPerformanceCounter(&tv);
-   return tv.QuadPart;
+   rtc = tv.QuadPart;
 
 #elif defined(BOTAN_USE_GCC_INLINE_ASM)
 
 #if defined(BOTAN_TARGET_CPU_IS_X86_FAMILY)
-   if(CPUID::has_rdtsc()) // not available on all x86 CPUs
+
+   if(CPUID::has_rdtsc())
       {
       uint32_t rtc_low = 0, rtc_high = 0;
       asm volatile("rdtsc" : "=d" (rtc_high), "=a" (rtc_low));
-      return (static_cast<uint64_t>(rtc_high) << 32) | rtc_low;
+      rtc = (static_cast<uint64_t>(rtc_high) << 32) | rtc_low;
       }
 
 #elif defined(BOTAN_TARGET_ARCH_IS_PPC64)
@@ -68,34 +104,24 @@ uint64_t OS::get_processor_timestamp()
    */
    if(rtc_high > 0 || rtc_low > 0)
       {
-      return (static_cast<uint64_t>(rtc_high) << 32) | rtc_low;
+      rtc = (static_cast<uint64_t>(rtc_high) << 32) | rtc_low;
       }
 
 #elif defined(BOTAN_TARGET_ARCH_IS_ALPHA)
-   uint64_t rtc = 0;
    asm volatile("rpcc %0" : "=r" (rtc));
-   return rtc;
 
    // OpenBSD does not trap access to the %tick register
 #elif defined(BOTAN_TARGET_ARCH_IS_SPARC64) && !defined(BOTAN_TARGET_OS_IS_OPENBSD)
-   uint64_t rtc = 0;
    asm volatile("rd %%tick, %0" : "=r" (rtc));
-   return rtc;
 
 #elif defined(BOTAN_TARGET_ARCH_IS_IA64)
-   uint64_t rtc = 0;
    asm volatile("mov %0=ar.itc" : "=r" (rtc));
-   return rtc;
 
 #elif defined(BOTAN_TARGET_ARCH_IS_S390X)
-   uint64_t rtc = 0;
    asm volatile("stck 0(%0)" : : "a" (&rtc) : "memory", "cc");
-   return rtc;
 
 #elif defined(BOTAN_TARGET_ARCH_IS_HPPA)
-   uint64_t rtc = 0;
    asm volatile("mfctl 16,%0" : "=r" (rtc)); // 64-bit only?
-   return rtc;
 
 #else
    //#warning "OS::get_processor_timestamp not implemented"
@@ -103,7 +129,7 @@ uint64_t OS::get_processor_timestamp()
 
 #endif
 
-   return 0;
+   return rtc;
    }
 
 uint64_t OS::get_high_resolution_clock()
@@ -185,7 +211,7 @@ size_t OS::get_memory_locking_limit()
    /*
    * Allow override via env variable
    */
-   if(const char* env = ::getenv("BOTAN_MLOCK_POOL_SIZE"))
+   if(const char* env = std::getenv("BOTAN_MLOCK_POOL_SIZE"))
       {
       try
          {
@@ -337,7 +363,7 @@ static ::sigjmp_buf g_sigill_jmp_buf;
 
 void botan_sigill_handler(int)
    {
-   ::siglongjmp(g_sigill_jmp_buf, /*non-zero return value*/1);
+   siglongjmp(g_sigill_jmp_buf, /*non-zero return value*/1);
    }
 
 }
@@ -345,7 +371,7 @@ void botan_sigill_handler(int)
 
 int OS::run_cpu_instruction_probe(std::function<int ()> probe_fn)
    {
-   int probe_result = -3;
+   volatile int probe_result = -3;
 
 #if defined(BOTAN_TARGET_OS_TYPE_IS_UNIX)
    struct sigaction old_sigaction;
@@ -360,26 +386,17 @@ int OS::run_cpu_instruction_probe(std::function<int ()> probe_fn)
    if(rc != 0)
       throw Exception("run_cpu_instruction_probe sigaction failed");
 
-   try
-      {
-      rc = ::sigsetjmp(g_sigill_jmp_buf, /*save sigs*/1);
+   rc = sigsetjmp(g_sigill_jmp_buf, /*save sigs*/1);
 
-      if(rc == 0)
-         {
-         // first call to sigsetjmp
-         probe_result = probe_fn();
-         }
-      else if(rc == 1)
-         {
-         // non-local return from siglongjmp in signal handler: return error
-         probe_result = -1;
-         }
-      else
-         throw Exception("run_cpu_instruction_probe unexpected sigsetjmp return value");
-      }
-   catch(...)
+   if(rc == 0)
       {
-      probe_result = -2;
+      // first call to sigsetjmp
+      probe_result = probe_fn();
+      }
+   else if(rc == 1)
+      {
+      // non-local return from siglongjmp in signal handler: return error
+      probe_result = -1;
       }
 
    // Restore old SIGILL handler, if any
@@ -392,14 +409,7 @@ int OS::run_cpu_instruction_probe(std::function<int ()> probe_fn)
    // Windows SEH
    __try
       {
-      try
-         {
-         probe_result = probe_fn();
-         }
-      catch(...)
-         {
-         probe_result = -2;
-         }
+      probe_result = probe_fn();
       }
    __except(::GetExceptionCode() == EXCEPTION_ILLEGAL_INSTRUCTION ?
             EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH)

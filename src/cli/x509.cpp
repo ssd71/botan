@@ -1,5 +1,6 @@
 /*
 * (C) 2010,2014,2015 Jack Lloyd
+* (C) 2017 René Korthaus, Rohde & Schwarz Cybersecurity
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -9,14 +10,16 @@
 #if defined(BOTAN_HAS_X509_CERTIFICATES)
 
 #include <botan/certstor.h>
+#include <botan/pk_keys.h>
 #include <botan/pkcs8.h>
 #include <botan/x509_ca.h>
 #include <botan/x509cert.h>
 #include <botan/x509path.h>
 #include <botan/x509self.h>
+#include <botan/data_src.h>
 
 #if defined(BOTAN_HAS_OCSP)
-  #include <botan/ocsp.h>
+   #include <botan/ocsp.h>
 #endif
 
 namespace Botan_CLI {
@@ -24,30 +27,32 @@ namespace Botan_CLI {
 class Sign_Cert final : public Command
    {
    public:
-      Sign_Cert() : Command("sign_cert --ca-key-pass= --hash=SHA-256 "
-                            "--duration=365 ca_cert ca_key pkcs10_req") {}
+      Sign_Cert()
+         : Command("sign_cert --ca-key-pass= --hash=SHA-256 "
+                   "--duration=365 --emsa= ca_cert ca_key pkcs10_req") {}
 
       void go() override
          {
          Botan::X509_Certificate ca_cert(get_arg("ca_cert"));
-         std::unique_ptr<Botan::PKCS8_PrivateKey> key;
+         std::unique_ptr<Botan::Private_Key> key;
+         const std::string pass = get_arg("ca-key-pass");
 
-         if(flag_set("ca_key_pass"))
+         if(!pass.empty())
             {
-            key.reset(Botan::PKCS8::load_key(get_arg("ca_key"),
-                     rng(),
-                     get_arg("ca_key_pass")));
+            key.reset(Botan::PKCS8::load_key(get_arg("ca_key"), rng(), pass));
             }
          else
             {
-            key.reset(Botan::PKCS8::load_key(get_arg("ca_key"),
-                     rng()));
+            key.reset(Botan::PKCS8::load_key(get_arg("ca_key"), rng()));
             }
 
          if(!key)
+            {
             throw CLI_Error("Failed to load key from " + get_arg("ca_key"));
+            }
 
-         Botan::X509_CA ca(ca_cert, *key, get_arg("hash"), rng());
+         Botan::X509_CA ca(ca_cert, *key,
+            {{"padding",get_arg_or("emsa", "EMSA4")}}, get_arg("hash"), rng());
 
          Botan::PKCS10_Request req(get_arg("pkcs10_req"));
 
@@ -59,8 +64,7 @@ class Sign_Cert final : public Command
 
          Botan::X509_Time end_time(now + days(get_arg_sz("duration")));
 
-         Botan::X509_Certificate new_cert = ca.sign_request(req, rng(),
-                                                            start_time, end_time);
+         Botan::X509_Certificate new_cert = ca.sign_request(req, rng(), start_time, end_time);
 
          output() << new_cert.PEM_encode();
          }
@@ -71,7 +75,7 @@ BOTAN_REGISTER_COMMAND("sign_cert", Sign_Cert);
 class Cert_Info final : public Command
    {
    public:
-      Cert_Info() : Command("cert_info --ber file") {}
+      Cert_Info() : Command("cert_info --fingerprint --ber file") {}
 
       void go() override
          {
@@ -92,11 +96,16 @@ class Cert_Info final : public Command
                   // to_string failed - report the exception and continue
                   output() << "X509_Certificate::to_string failed: " << e.what() << "\n";
                   }
+
+               if(flag_set("fingerprint"))
+                  output() << "Fingerprint: " << cert.fingerprint("SHA-256") << std::endl;
                }
             catch(Botan::Exception& e)
                {
                if(!in.end_of_data())
+                  {
                   output() << "X509_Certificate parsing failed " << e.what() << "\n";
+                  }
                }
             }
          }
@@ -109,16 +118,17 @@ BOTAN_REGISTER_COMMAND("cert_info", Cert_Info);
 class OCSP_Check final : public Command
    {
    public:
-      OCSP_Check() : Command("ocsp_check subject issuer") {}
+      OCSP_Check() : Command("ocsp_check --timeout=3000 subject issuer") {}
 
       void go() override
          {
          Botan::X509_Certificate subject(get_arg("subject"));
          Botan::X509_Certificate issuer(get_arg("issuer"));
+         std::chrono::milliseconds timeout(get_arg_sz("timeout"));
 
          Botan::Certificate_Store_In_Memory cas;
          cas.add_certificate(issuer);
-         Botan::OCSP::Response resp = Botan::OCSP::online_check(issuer, subject, &cas);
+         Botan::OCSP::Response resp = Botan::OCSP::online_check(issuer, subject, &cas, timeout);
 
          auto status = resp.status_for(issuer, subject, std::chrono::system_clock::now());
 
@@ -128,8 +138,7 @@ class OCSP_Check final : public Command
             }
          else
             {
-            output() << "OCSP check failed " <<
-               Botan::Path_Validation_Result::status_string(status) << "\n";
+            output() << "OCSP check failed " << Botan::Path_Validation_Result::status_string(status) << "\n";
             }
          }
    };
@@ -148,7 +157,7 @@ class Cert_Verify final : public Command
          Botan::X509_Certificate subject_cert(get_arg("subject"));
          Botan::Certificate_Store_In_Memory trusted;
 
-         for(auto&& certfile : get_arg_list("ca_certs"))
+         for(auto const& certfile : get_arg_list("ca_certs"))
             {
             trusted.add_certificate(Botan::X509_Certificate(certfile));
             }
@@ -176,18 +185,18 @@ BOTAN_REGISTER_COMMAND("cert_verify", Cert_Verify);
 class Gen_Self_Signed final : public Command
    {
    public:
-      Gen_Self_Signed() : Command("gen_self_signed key CN --country= --dns= "
-                                  "--organization= --email= --key-pass= --ca --hash=SHA-256") {}
+      Gen_Self_Signed()
+         : Command("gen_self_signed key CN --country= --dns= "
+                   "--organization= --email= --key-pass= --ca --hash=SHA-256 --emsa=") {}
 
       void go() override
          {
-         std::unique_ptr<Botan::Private_Key> key(
-            Botan::PKCS8::load_key(get_arg("key"),
-                                   rng(),
-                                   get_arg("key-pass")));
+         std::unique_ptr<Botan::Private_Key> key(Botan::PKCS8::load_key(get_arg("key"), rng(), get_arg("key-pass")));
 
          if(!key)
+            {
             throw CLI_Error("Failed to load key from " + get_arg("key"));
+            }
 
          Botan::X509_Cert_Options opts;
 
@@ -196,12 +205,14 @@ class Gen_Self_Signed final : public Command
          opts.organization = get_arg("organization");
          opts.email        = get_arg("email");
          opts.dns          = get_arg("dns");
+         opts.set_padding_scheme(get_arg_or("emsa", "EMSA4"));
 
          if(flag_set("ca"))
+            {
             opts.CA_key();
+            }
 
-         Botan::X509_Certificate cert =
-            Botan::X509::create_self_signed_cert(opts, *key, get_arg("hash"), rng());
+         Botan::X509_Certificate cert = Botan::X509::create_self_signed_cert(opts, *key, get_arg("hash"), rng());
 
          output() << cert.PEM_encode();
          }
@@ -212,18 +223,18 @@ BOTAN_REGISTER_COMMAND("gen_self_signed", Gen_Self_Signed);
 class Generate_PKCS10 final : public Command
    {
    public:
-      Generate_PKCS10() : Command("gen_pkcs10 key CN --country= --organization= "
-                                  "--email= --key-pass= --hash=SHA-256") {}
+      Generate_PKCS10()
+         : Command("gen_pkcs10 key CN --country= --organization= "
+                   "--email= --key-pass= --hash=SHA-256 --emsa=") {}
 
       void go() override
          {
-         std::unique_ptr<Botan::Private_Key> key(
-            Botan::PKCS8::load_key(get_arg("key"),
-                                   rng(),
-                                   get_arg("key-pass")));
+         std::unique_ptr<Botan::Private_Key> key(Botan::PKCS8::load_key(get_arg("key"), rng(), get_arg("key-pass")));
 
          if(!key)
+            {
             throw CLI_Error("Failed to load key from " + get_arg("key"));
+            }
 
          Botan::X509_Cert_Options opts;
 
@@ -231,11 +242,9 @@ class Generate_PKCS10 final : public Command
          opts.country      = get_arg("country");
          opts.organization = get_arg("organization");
          opts.email        = get_arg("email");
+         opts.set_padding_scheme(get_arg_or("emsa", "EMSA4"));
 
-         Botan::PKCS10_Request req =
-            Botan::X509::create_cert_req(opts, *key,
-                                         get_arg("hash"),
-                                         rng());
+         Botan::PKCS10_Request req = Botan::X509::create_cert_req(opts, *key, get_arg("hash"), rng());
 
          output() << req.PEM_encode();
          }

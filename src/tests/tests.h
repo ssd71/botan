@@ -5,24 +5,15 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_TESTS_H__
-#define BOTAN_TESTS_H__
+#ifndef BOTAN_TESTS_H_
+#define BOTAN_TESTS_H_
 
 #include <botan/build.h>
 #include <botan/rng.h>
 #include <botan/hex.h>
 #include <botan/symkey.h>
 #include <botan/cpuid.h>
-
-#if defined(BOTAN_HAS_BIGINT)
-  #include <botan/bigint.h>
-#endif
-
-#if defined(BOTAN_HAS_EC_CURVE_GFP)
-  #include <botan/point_gfp.h>
-#endif
-
-#include <fstream>
+#include <iosfwd>
 #include <functional>
 #include <map>
 #include <memory>
@@ -32,18 +23,37 @@
 #include <unordered_map>
 #include <vector>
 
+namespace Botan {
+
+#if defined(BOTAN_HAS_BIGINT)
+class BigInt;
+#endif
+
+#if defined(BOTAN_HAS_EC_CURVE_GFP)
+class PointGFp;
+#endif
+
+}
+
 namespace Botan_Tests {
 
 #if defined(BOTAN_HAS_BIGINT)
-using Botan::BigInt;
+   using Botan::BigInt;
 #endif
 
-using Botan::OctetString;
-
-class Test_Error : public Botan::Exception
+class Test_Error final : public Botan::Exception
    {
    public:
       explicit Test_Error(const std::string& what) : Exception("Test error", what) {}
+   };
+
+class Provider_Filter final
+   {
+   public:
+      void set(const std::string& provider) { m_provider = provider; }
+      std::vector<std::string> filter(const std::vector<std::string>&) const;
+   private:
+      std::string m_provider;
    };
 
 /*
@@ -60,17 +70,32 @@ class Test
       /*
       * Some number of test results, all associated with who()
       */
-      class Result
+      class Result final
          {
          public:
             explicit Result(const std::string& who) : m_who(who) {}
 
-            size_t tests_passed() const { return m_tests_passed; }
-            size_t tests_failed() const { return m_fail_log.size(); }
-            size_t tests_run() const { return tests_passed() + tests_failed(); }
-            bool any_results() const { return tests_run() > 0; }
+            size_t tests_passed() const
+               {
+               return m_tests_passed;
+               }
+            size_t tests_failed() const
+               {
+               return m_fail_log.size();
+               }
+            size_t tests_run() const
+               {
+               return tests_passed() + tests_failed();
+               }
+            bool any_results() const
+               {
+               return tests_run() > 0;
+               }
 
-            const std::string& who() const { return m_who; }
+            const std::string& who() const
+               {
+               return m_who;
+               }
             std::string result_string(bool verbose) const;
 
             static Result Failure(const std::string& who,
@@ -178,8 +203,11 @@ class Test
             bool test_eq(const std::string& what, bool produced, bool expected);
 
             bool test_eq(const std::string& what, size_t produced, size_t expected);
+            bool test_eq_sz(const std::string& what, size_t produced, size_t expected);
 
-            bool test_eq(const std::string& what, OctetString produced, OctetString expected);
+            bool test_eq(const std::string& what,
+                         Botan::OctetString produced,
+                         Botan::OctetString expected);
 
             template<typename I1, typename I2>
             bool test_int_eq(I1 x, I2 y, const char* what)
@@ -298,11 +326,14 @@ class Test
                }
 
             bool test_throws(const std::string& what, std::function<void ()> fn);
-            
-            bool test_throws(const std::string& what, const std::string& expected,
-                              std::function<void ()> fn);
 
-            void set_ns_consumed(uint64_t ns) { m_ns_taken = ns; }
+            bool test_throws(const std::string& what, const std::string& expected,
+                             std::function<void ()> fn);
+
+            void set_ns_consumed(uint64_t ns)
+               {
+               m_ns_taken = ns;
+               }
 
             void start_timer();
             void end_timer();
@@ -316,16 +347,16 @@ class Test
             std::vector<std::string> m_log;
          };
 
-      class Registration
+      class Registration final
          {
          public:
             Registration(const std::string& name, Test* test);
          };
 
+      virtual ~Test() = default;
       virtual std::vector<Test::Result> run() = 0;
-      virtual ~Test() {}
 
-      static std::vector<Test::Result> run_test(const std::string& what, bool fail_if_missing);
+      virtual std::vector<std::string> possible_providers(const std::string&);
 
       static std::map<std::string, std::unique_ptr<Test>>& global_registry();
 
@@ -365,19 +396,25 @@ class Test
          return r;
          }
 
-      static void setup_tests(bool log_succcss,
-                              bool run_online_tests,
-                              bool run_long_tests,
-                              const std::string& data_dir,
-                              const std::string& pkcs11_lib,
-                              Botan::RandomNumberGenerator* rng);
+      static void set_test_options(bool log_success,
+                                   bool run_online_tests,
+                                   bool run_long_tests,
+                                   const std::string& data_dir,
+                                   const std::string& pkcs11_lib,
+                                   const Botan_Tests::Provider_Filter& pf);
+
+      static void set_test_rng(std::unique_ptr<Botan::RandomNumberGenerator> rng);
 
       static bool log_success();
       static bool run_online_tests();
       static bool run_long_tests();
       static std::string pkcs11_lib();
+      static std::vector<std::string> provider_filter(const std::vector<std::string>&);
 
       static const std::string& data_dir();
+
+      static std::string read_data_file(const std::string& path);
+      static std::vector<uint8_t> read_binary_data_file(const std::string& path);
 
       static Botan::RandomNumberGenerator& rng();
       static std::string random_password();
@@ -385,17 +422,17 @@ class Test
 
    private:
       static std::string m_data_dir;
-      static Botan::RandomNumberGenerator* m_test_rng;
+      static std::unique_ptr<Botan::RandomNumberGenerator> m_test_rng;
       static bool m_log_success, m_run_online_tests, m_run_long_tests;
       static std::string m_pkcs11_lib;
+      static Botan_Tests::Provider_Filter m_provider_filter;
    };
 
 /*
 * Register the test with the runner
 */
 #define BOTAN_REGISTER_TEST(type, Test_Class) \
-   namespace { Test::Registration reg_ ## Test_Class ## _tests(type, new Test_Class); } \
-   BOTAN_FORCE_SEMICOLON
+   Test::Registration reg_ ## Test_Class ## _tests(type, new Test_Class)
 
 /*
 * A test based on reading an input file which contains key/value pairs
@@ -419,7 +456,10 @@ class Text_Based_Test : public Test
                       const std::string& required_keys,
                       const std::string& optional_keys = "");
 
-      virtual bool clear_between_callbacks() const { return true; }
+      virtual bool clear_between_callbacks() const
+         {
+         return true;
+         }
 
       std::vector<Test::Result> run() override;
    protected:
@@ -428,12 +468,14 @@ class Text_Based_Test : public Test
 
       virtual Test::Result run_one_test(const std::string& header,
                                         const VarMap& vars) = 0;
-
       // Called before run_one_test
       virtual bool skip_this_test(const std::string& header,
                                   const VarMap& vars);
 
-      virtual std::vector<Test::Result> run_final_tests() { return std::vector<Test::Result>(); }
+      virtual std::vector<Test::Result> run_final_tests()
+         {
+         return std::vector<Test::Result>();
+         }
 
       bool get_req_bool(const VarMap& vars, const std::string& key) const;
 
@@ -459,7 +501,7 @@ class Text_Based_Test : public Test
       std::string m_output_key;
 
       bool m_first = true;
-      std::unique_ptr<std::ifstream> m_cur;
+      std::unique_ptr<std::istream> m_cur;
       std::string m_cur_src_name;
       std::deque<std::string> m_srcs;
       std::vector<Botan::CPUID::CPUID_bits> m_cpu_flags;

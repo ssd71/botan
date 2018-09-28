@@ -2,9 +2,10 @@ os_type unix
 
 soname_suffix "so"
 
+use_stack_protector no
+
 <target_features>
 clock_gettime
-gettimeofday
 gmtime_r
 dlopen
 readdir

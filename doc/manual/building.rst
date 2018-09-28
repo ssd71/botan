@@ -10,7 +10,7 @@ the build system, primarily due to lack of access. Please contact the
 maintainer if you would like to build Botan on such a system.
 
 Botan's build is controlled by configure.py, which is a `Python
-<http://www.python.org>`_ script. Python 2.6 or later is required.
+<https://www.python.org>`_ script. Python 2.6 or later is required.
 
 .. highlight:: none
 
@@ -61,10 +61,11 @@ we might see lines like::
    INFO: Skipping, requires external dependency - boost bzip2 lzma sqlite3 tpm
 
 The ones that are skipped because they are require an external
-depedency have to be explicitly asked for, because they rely on third
+dependency have to be explicitly asked for, because they rely on third
 party libraries which your system might not have or that you might not
 want the resulting binary to depend on. For instance to enable zlib
 support, add ``--with-zlib`` to your invocation of ``configure.py``.
+All available modules can be listed with ``--list-modules``.
 
 You can control which algorithms and modules are built using the
 options ``--enable-modules=MODS`` and ``--disable-modules=MODS``, for
@@ -84,17 +85,35 @@ For instance::
 will set up a build that only includes RSA, OAEP, PSS along with any
 required dependencies. A small subset of core features, including AES,
 SHA-2, HMAC, and the multiple precision integer library, are always
-loaded.
+loaded. Note that a minimized build does not include any random number
+generator, which is needed for example to generate keys, nonces and IVs.
+See :doc:`rng` on which random number generators are available.
 
-The script tries to guess what kind of makefile to generate, and it
-almost always guesses correctly (basically, Visual C++ uses NMAKE with
-Windows commands, and everything else uses Unix make with POSIX
-commands). Just in case, you can override it with
-``--make-style=X``. The styles Botan currently knows about are 'gmake'
-(GNU make and possibly some other Unix makes), and 'nmake', the make
-variant commonly used by Microsoft compilers. To add a new variant
-(eg, a build script for VMS), you will need to create a new template
-file in ``src/build-data/makefile``.
+The option ``--module-policy=POL`` enables modules required by and
+disables modules prohibited by a text policy in ``src/build-data/policy``.
+Additional modules can be enabled if not prohibited by the policy.
+Currently available policies include ``bsi``, ``nist`` and ``modern``::
+
+ $ ./configure.py --module-policy=bsi --enable-modules=tls,xts
+
+Cross Compiling
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Cross compiling refers to building software on one type of host (say Linux
+x86-64) but creating a binary for some other type (say MinGW x86-32). This is
+completely supported by the build system. To extend the example, we must tell
+`configure.py` to use the MinGW tools:
+
+ $ ./configure.py --os=mingw --cpu=x86_32 --cc-bin=i686-w64-mingw32-g++ --ar=i686-w64-mingw32-ar
+ ...
+ $ make
+ ...
+ $ file botan.exe
+ botan.exe: PE32 executable (console) Intel 80386, for MS Windows
+
+You can also specify the alternate tools by setting the `CXX` and `AR`
+environment variables (instead of the `--cc-bin` and `--ar-command` options), as
+is commonly done with autoconf builds.
 
 On Unix
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -131,22 +150,12 @@ shared libraries to be picked up by the linker. An alternative is to
 set your ``LD_LIBRARY_PATH`` shell variable to include the directory
 that the Botan libraries were installed into.
 
-On OS X
+On macOS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-In general the Unix instructions above should apply, however OS X does
-not support ``LD_LIBRARY_PATH``. Thomas Keller suggests instead
-running ``install_name_tool`` between building and running the
-self-test program::
+A build on macOS works much like that on any other Unix-like system.
 
-  $ VERSION=1.11.11 # or whatever the current version is
-  $ install_name_tool -change $(otool -X -D libbotan-$VERSION.dylib) \
-       $PWD/libbotan-$VERSION.dylib botan-test
-
-Building Universal Binaries
-&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
-
-To build a universal binary for OS X, you need to set some additional
+To build a universal binary for macOS, you need to set some additional
 build flags. Do this with the `configure.py` flag `--cc-abi-flags`::
 
   --cc-abi-flags="-force_cpusubtype_ALL -mmacosx-version-min=10.4 -arch i386 -arch ppc"
@@ -154,11 +163,15 @@ build flags. Do this with the `configure.py` flag `--cc-abi-flags`::
 On Windows
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+.. note::
+
+   The earliest versions of Windows supported are Windows 7 and Windows 2008 R2
+
 You need to have a copy of Python installed, and have both Python and
 your chosen compiler in your path. Open a command shell (or the SDK
 shell), and run::
 
-   $ python configure.py --cc=msvc (or --cc=gcc for MinGW) [--cpu=CPU]
+   $ python configure.py --cc=msvc --os=windows
    $ nmake
    $ botan-test.exe
    $ nmake install
@@ -166,12 +179,10 @@ shell), and run::
 Botan supports the nmake replacement `Jom <https://wiki.qt.io/Jom>`_
 which enables you to run multiple build jobs in parallel.
 
-For Win95 pre OSR2, the ``cryptoapi_rng`` module will not work,
-because CryptoAPI didn't exist. And all versions of NT4 lack the
-ToolHelp32 interface, which is how ``win32_stats`` does its slow
-polls, so a version of the library built with that module will not
-load under NT4. Later versions of Windows support both methods, so
-this shouldn't be much of an issue anymore.
+For MinGW, use::
+
+   $ python configure.py --cc=gcc --os=mingw
+   $ make
 
 By default the install target will be ``C:\botan``; you can modify
 this with the ``--prefix`` option.
@@ -227,7 +238,7 @@ For Android
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Instructions for building the library on Android can be found
-`here <http://www.tiwoc.de/blog/2013/03/building-the-botan-library-for-android/>`_.
+`here <https://www.danielseither.de/blog/2013/03/building-the-botan-library-for-android/>`_.
 
 Other Build-Related Tasks
 ----------------------------------------
@@ -256,7 +267,7 @@ To generate the amalgamation, run ``configure.py`` with whatever
 options you would ordinarily use, along with the option
 ``--amalgamation``. This will create two (rather large) files,
 ``botan_all.h`` and ``botan_all.cpp``, plus (unless the option
-``--single-amalgmation-file`` is used) also some number of files like
+``--single-amalgamation-file`` is used) also some number of files like
 ``botan_all_aesni.cpp`` and ``botan_all_sse2.cpp`` which need to be
 compiled with the appropriate compiler flags to enable that
 instruction set. The ISA specific files are only generated if there is
@@ -305,12 +316,13 @@ by the user using
 
  - ``--with-openssl`` adds an engine that uses OpenSSL for some public
    key operations and ciphers/hashes. OpenSSL 1.0.1 or later is supported.
+   LibreSSL is API compatible with OpenSSL 1.0 and can be used instead.
 
 Multiple Builds
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 It may be useful to run multiple builds with different configurations.
-Specify ``--build-dir=<dir>`` to set up a build environment in a
+Specify ``--with-build-dir=<dir>`` to set up a build environment in a
 different directory.
 
 Setting Distribution Info
@@ -323,7 +335,7 @@ distribution this build is from. Applications can test this value by
 checking the string value of the macro ``BOTAN_DISTRIBUTION_INFO``. It
 can be set using the ``--distribution-info`` flag to ``configure.py``,
 and otherwise defaults to "unspecified". For instance, a `Gentoo
-<http://www.gentoo.org>`_ ebuild might set it with
+<https://www.gentoo.org>`_ ebuild might set it with
 ``--distribution-info="Gentoo ${PVR}"`` where ``${PVR}`` is an ebuild
 variable automatically set to a combination of the library and ebuild
 versions.

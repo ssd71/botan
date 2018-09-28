@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_TLS_PROTOCOL_VERSION_H__
-#define BOTAN_TLS_PROTOCOL_VERSION_H__
+#ifndef BOTAN_TLS_PROTOCOL_VERSION_H_
+#define BOTAN_TLS_PROTOCOL_VERSION_H_
 
 #include <botan/loadstor.h>
 #include <string>
@@ -18,7 +18,7 @@ namespace TLS {
 /**
 * TLS Protocol Version
 */
-class BOTAN_DLL Protocol_Version
+class BOTAN_PUBLIC_API(2,0) Protocol_Version final
    {
    public:
       enum Version_Code {
@@ -59,7 +59,7 @@ class BOTAN_DLL Protocol_Version
       * @param minor the minor version
       */
       Protocol_Version(uint8_t major, uint8_t minor) :
-         m_version((static_cast<uint16_t>(major) << 8) | minor) {}
+         m_version(static_cast<uint16_t>((static_cast<uint16_t>(major) << 8) | minor)) {}
 
       /**
       * @return true if this is a valid protocol version

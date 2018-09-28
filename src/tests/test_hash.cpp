@@ -12,10 +12,15 @@ namespace Botan_Tests {
 
 namespace {
 
-class Hash_Function_Tests : public Text_Based_Test
+class Hash_Function_Tests final : public Text_Based_Test
    {
    public:
       Hash_Function_Tests() : Text_Based_Test("hash", "In,Out") {}
+
+      std::vector<std::string> possible_providers(const std::string& algo) override
+         {
+         return provider_filter(Botan::HashFunction::providers(algo));
+         }
 
       Test::Result run_one_test(const std::string& algo, const VarMap& vars) override
          {
@@ -24,7 +29,7 @@ class Hash_Function_Tests : public Text_Based_Test
 
          Test::Result result(algo);
 
-         const std::vector<std::string> providers = Botan::HashFunction::providers(algo);
+         const std::vector<std::string> providers = possible_providers(algo);
 
          if(providers.empty())
             {
@@ -32,7 +37,7 @@ class Hash_Function_Tests : public Text_Based_Test
             return result;
             }
 
-         for(auto&& provider_ask : providers)
+         for(auto const& provider_ask : providers)
             {
             std::unique_ptr<Botan::HashFunction> hash(Botan::HashFunction::create(algo, provider_ask));
 
@@ -63,12 +68,29 @@ class Hash_Function_Tests : public Text_Based_Test
 
             result.test_eq(provider, "hashing after clear", hash->final(), expected);
 
-            // TODO: feed in random pieces to fully test buffering
-            if(input.size() > 1)
+            if(input.size() > 5)
                {
                hash->update(input[0]);
-               hash->update(&input[1], input.size() - 1);
+
+               std::unique_ptr<Botan::HashFunction> fork = hash->copy_state();
+               // verify fork copy doesn't affect original computation
+               fork->update(&input[1], input.size() - 2);
+
+               size_t so_far = 1;
+               while(so_far < input.size())
+                  {
+                  size_t take = Test::rng().next_byte() % (input.size() - so_far);
+
+                  if(input.size() - so_far == 1)
+                     take = 1;
+
+                  hash->update(&input[so_far], take);
+                  so_far += take;
+                  }
                result.test_eq(provider, "hashing split", hash->final(), expected);
+
+               fork->update(&input[input.size() - 1], 1);
+               result.test_eq(provider, "hashing split", fork->final(), expected);
                }
 
             if(hash->hash_block_size() > 0)

@@ -5,18 +5,19 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_BLOCK_CIPHER_H__
-#define BOTAN_BLOCK_CIPHER_H__
+#ifndef BOTAN_BLOCK_CIPHER_H_
+#define BOTAN_BLOCK_CIPHER_H_
 
 #include <botan/sym_algo.h>
 #include <string>
+#include <memory>
 
 namespace Botan {
 
 /**
 * This class represents a block cipher object.
 */
-class BOTAN_DLL BlockCipher : public SymmetricAlgorithm
+class BOTAN_PUBLIC_API(2,0) BlockCipher : public SymmetricAlgorithm
    {
    public:
 
@@ -168,12 +169,32 @@ class BOTAN_DLL BlockCipher : public SymmetricAlgorithm
       virtual void decrypt_n(const uint8_t in[], uint8_t out[],
                              size_t blocks) const = 0;
 
+      virtual void encrypt_n_xex(uint8_t data[],
+                                 const uint8_t mask[],
+                                 size_t blocks) const
+         {
+         const size_t BS = block_size();
+         xor_buf(data, mask, blocks * BS);
+         encrypt_n(data, data, blocks);
+         xor_buf(data, mask, blocks * BS);
+         }
+
+      virtual void decrypt_n_xex(uint8_t data[],
+                                 const uint8_t mask[],
+                                 size_t blocks) const
+         {
+         const size_t BS = block_size();
+         xor_buf(data, mask, blocks * BS);
+         decrypt_n(data, data, blocks);
+         xor_buf(data, mask, blocks * BS);
+         }
+
       /**
       * @return new object representing the same algorithm as *this
       */
       virtual BlockCipher* clone() const = 0;
 
-      virtual ~BlockCipher() {}
+      virtual ~BlockCipher() = default;
    };
 
 /**
@@ -185,6 +206,25 @@ class Block_Cipher_Fixed_Params : public BlockCipher
    public:
       enum { BLOCK_SIZE = BS };
       size_t block_size() const override { return BS; }
+
+      // override to take advantage of compile time constant block size
+      void encrypt_n_xex(uint8_t data[],
+                         const uint8_t mask[],
+                         size_t blocks) const override
+         {
+         xor_buf(data, mask, blocks * BS);
+         encrypt_n(data, data, blocks);
+         xor_buf(data, mask, blocks * BS);
+         }
+
+      void decrypt_n_xex(uint8_t data[],
+                         const uint8_t mask[],
+                         size_t blocks) const override
+         {
+         xor_buf(data, mask, blocks * BS);
+         decrypt_n(data, data, blocks);
+         xor_buf(data, mask, blocks * BS);
+         }
 
       Key_Length_Specification key_spec() const override
          {
