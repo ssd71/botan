@@ -39,7 +39,7 @@ Release Downloads
 
 The latest version is `2.4.0-RSCS1 <https://cybersecurity.rohde-schwarz.com/sites/default/files/sha_downloads/Botan-2.4.0-RSCS1.zip>`_ (`sig <https://cybersecurity.rohde-schwarz.com/sites/default/files/sha_downloads/Botan-2.4.0-RSCS1.zip.sig>`_) released on 2018-09-28.
 
-`SHA-256 <https://cybersecurity.rohde-schwarz.com/sites/default/files/sha_downloads/Botan-2.4.0-RSCS1.zip.sha256>`_: <TO BE INSERTED HERE>
+`SHA-256 <https://cybersecurity.rohde-schwarz.com/sites/default/files/sha_downloads/Botan-2.4.0-RSCS1.zip.sha256>`_: EADC9A20FBE6AF4725CBA26B0636C1244083BAF4F936A129AF498D056EACBF75
 
 All approved releases are signed with the following `key <https://cybersecurity.rohde-schwarz.com/sites/default/files/sha_downloads/Botan-Signing-Key.pem>`_ (`cert <https://cybersecurity.rohde-schwarz.com/sites/default/files/sha_downloads/Botan-Signing-Cert.pem>`_)::
 
