@@ -37,9 +37,9 @@ Subscribe by sending an email to botan-bsi-announce-register@rohde-schwarz.com.
 Release Downloads
 ----------------------------------------
 
-The latest version is `2.4.0-RSCS1 <https://cybersecurity.rohde-schwarz.com/sites/default/files/sha_downloads/Botan-2.4.0-RSCS1.zip>`_ (`sig <https://cybersecurity.rohde-schwarz.com/sites/default/files/sha_downloads/Botan-2.4.0-RSCS1.zip.sig>`_) released on 2018-09-28.
+The latest version is `2.4.0-RSCS1 <https://cdn.rohde-schwarz.com/pws/dl_downloads/dl_software/zip/Cybersecurity-software-Botan-2.4.0-RSCS1.zip>`_ (`sig <https://cdn.rohde-schwarz.com/pws/dl_downloads/dl_software/sig/Cybersecurity-software-Botan-2.4.0-RSCS1.zip.sig>`_) released on 2018-09-28.
 
-`SHA-256 <https://cybersecurity.rohde-schwarz.com/sites/default/files/sha_downloads/Botan-2.4.0-RSCS1.zip.sha256>`_: EADC9A20FBE6AF4725CBA26B0636C1244083BAF4F936A129AF498D056EACBF75
+`SHA-256 <https://cdn.rohde-schwarz.com/pws/dl_downloads/dl_software/sha256/Cybersecurity-software-Botan-2.4.0-RSCS1.zip.sha256>`_: EADC9A20FBE6AF4725CBA26B0636C1244083BAF4F936A129AF498D056EACBF75
 
 All approved releases are signed with the following `key <https://cybersecurity.rohde-schwarz.com/sites/default/files/sha_downloads/Botan-Signing-Key.pem>`_ (`cert <https://cybersecurity.rohde-schwarz.com/sites/default/files/sha_downloads/Botan-Signing-Cert.pem>`_)::
 
@@ -62,18 +62,18 @@ The SHA-256 public key fingerprint is B1B688ED5FD24ACD53E73BE74A5279916471B2A9C8
 
 Verify the release signature using Botan::
 
-  $ botan verify --hash=SHA-512 --emsa=EMSA4 Botan-Signing-Key.pem Botan-2.4.0-RSCS1.zip Botan-2.4.0-RSCS1.zip.sig
+  $ botan verify --hash=SHA-512 --emsa=EMSA4 Botan-Signing-Key.pem Cybersecurity-software-Botan-2.4.0-RSCS1.zip Cybersecurity-software-Botan-2.4.0-RSCS1.zip.sig
   Signature is valid
 
 Verify the release signature using OpenSSL (you need to base64 decode the signature first)::
 
-  $ type Botan-2.4.0-RSCS1.zip.sig | openssl base64 -d -out Botan-2.4.0-RSCS1.zip.sig.dec
+  $ type Cybersecurity-software-Botan-2.4.0-RSCS1.zip.sig | openssl base64 -d -out Cybersecurity-software-Botan-2.4.0-RSCS1.zip.sig.dec
 
 or alternatively using python::
 
-  $ python -m base64 -d Botan-2.4.0-RSCS1.zip.sig > Botan-2.4.0-RSCS1.zip.sig.dec
+  $ python -m base64 -d Cybersecurity-software-Botan-2.4.0-RSCS1.zip.sig > Cybersecurity-software-Botan-2.4.0-RSCS1.zip.sig.dec
 
-  $ openssl dgst -sha512 -sigopt rsa_padding_mode:pss -sigopt rsa_pss_saltlen:64 -verify Botan-Signing-Key.pem -signature Botan-2.4.0-RSCS1.zip.sig.dec Botan-2.4.0-RSCS1.zip
+  $ openssl dgst -sha512 -sigopt rsa_padding_mode:pss -sigopt rsa_pss_saltlen:64 -verify Botan-Signing-Key.pem -signature Cybersecurity-software-Botan-2.4.0-RSCS1.zip.sig.dec Cybersecurity-software-Botan-2.4.0-RSCS1.zip
   Verified OK
 
 Documentation
