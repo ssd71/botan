@@ -4,7 +4,7 @@ os:
   - osx
   - linux
 
-dist: xenial
+dist: bionic
 sudo: required
 
 compiler:
@@ -117,6 +117,7 @@ branches:
     - master
     - release-2
     - coverity_scan
+    - bionic
 
 git:
   depth: 10

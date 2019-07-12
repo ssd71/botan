@@ -176,12 +176,12 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache, ro
             flags += ['--cpu=x86_32']
 
         elif target == 'cross-win64':
-            # MinGW in 16.04 is lacking std::mutex for unknown reason
+            # MinGW in 18.04 is lacking std::mutex for unknown reason
             cc_bin = 'x86_64-w64-mingw32-g++'
             flags += ['--cpu=x86_64', '--cc-abi-flags=-static',
                       '--ar-command=x86_64-w64-mingw32-ar', '--without-os-feature=threads']
             test_cmd = [os.path.join(root_dir, 'botan-test.exe')] + test_cmd[1:]
-            # No runtime prefix required for Wine
+            test_prefix = ['wine']
         else:
             # Build everything but restrict what is run
             test_cmd += fast_tests
@@ -198,6 +198,7 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache, ro
                 flags += ['--cpu=ppc32']
                 cc_bin = 'powerpc-linux-gnu-g++'
                 test_prefix = ['qemu-ppc', '-L', '/usr/powerpc-linux-gnu/']
+                test_cmd = None # 18.04 qemu has problems
             elif target == 'cross-ppc64':
                 flags += ['--cpu=ppc64', '--with-endian=little']
                 cc_bin = 'powerpc64le-linux-gnu-g++'
@@ -207,6 +208,7 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache, ro
                 cc_bin = 'mips64-linux-gnuabi64-g++'
                 test_prefix = ['qemu-mips64', '-L', '/usr/mips64-linux-gnuabi64/']
                 test_cmd.remove('simd_32') # no SIMD on MIPS
+                test_cmd = None # 18.04 qemu has problems
             else:
                 raise Exception("Unknown cross target '%s' for Linux" % (target))
     else:
@@ -244,10 +246,11 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache, ro
                 # Avoid OpenSSL when using dynamic checkers, or on OS X where it sporadically
                 # is not installed on the CI image
                 flags += ['--with-openssl']
+                pass
 
-        if target in ['sonar', 'coverage']:
+        if target in ['coverage']:
             flags += ['--with-tpm']
-            test_cmd += ['--run-long-tests', '--run-online-tests']
+            test_cmd += ['--run-online-tests']
             if pkcs11_lib and os.access(pkcs11_lib, os.R_OK):
                 test_cmd += ['--pkcs11-lib=%s' % (pkcs11_lib)]
 
@@ -272,7 +275,6 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache, ro
                                               '-ex', 'quit']
         else:
             run_test_command = test_prefix + test_cmd
-
 
     return flags, run_test_command, make_prefix
 
