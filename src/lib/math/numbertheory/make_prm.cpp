@@ -196,6 +196,9 @@ BigInt generate_rsa_prime(RandomNumberGenerator& keygen_rng,
 
    const size_t MAX_ATTEMPTS = 32*1024;
 
+   BN_Pool pool;
+   auto scope = pool.scope();
+
    while(true)
       {
       BigInt p(keygen_rng, bits);
@@ -251,7 +254,7 @@ BigInt generate_rsa_prime(RandomNumberGenerator& keygen_rng,
          if(p.bits() > bits)
             break;
 
-         if(is_prime(p, prime_test_rng, prob, true))
+         if(is_prime(p, prime_test_rng, pool, prob, true))
             return p;
          }
       }
